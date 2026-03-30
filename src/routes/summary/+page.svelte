@@ -2,11 +2,11 @@
 	import Loader from '$lib/Components/loader.svelte';
 	import { pm, shoplift, drug } from '$lib/prompts-full';
 	import { micromark } from 'micromark';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 
-	const t = $page.url.searchParams.get('t') || '';
-	const s = $page.url.searchParams.get('s') || '';
+	const t = page.url.searchParams.get('t') || '';
+	const s = page.url.searchParams.get('s') || '';
 	let msgs: TMsg[] = [];
 
 	const sources = { pm, shoplift, drug }[s] ?? pm;

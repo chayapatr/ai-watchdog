@@ -1,6 +1,11 @@
 <script lang="ts">
 	import { postData } from '$lib/sheet';
 	import { onMount } from 'svelte';
+	import Dog from '$lib/Components/Dog.svelte';
+	import type { DogPose } from '$lib/Components/Dog.svelte';
+
+	let pose = $state<DogPose>('idle');
+	const poses: DogPose[] = ['bark', 'idle', 'sleep', 'talk'];
 
 	// function updateQuestionNumber(questionNumber) {
 	// 	formDataStore.question_number = questionNumber;
@@ -51,4 +56,19 @@
 	});
 </script>
 
-<button on:click={() => postData(data)}>send</button>
+<div class="flex flex-col items-center gap-6 p-8 font-sans">
+	<Dog {pose} size={200} />
+
+	<div class="flex gap-2">
+		{#each poses as p}
+			<button
+				onclick={() => (pose = p)}
+				class="rounded-lg px-4 py-2 text-sm font-medium capitalize transition-colors {pose === p ? 'bg-purple-500 text-white' : 'border border-neutral-300 text-neutral-700 hover:bg-neutral-100'}"
+			>
+				{p}
+			</button>
+		{/each}
+	</div>
+
+	<button onclick={() => postData(data)}>send sheet</button>
+</div>

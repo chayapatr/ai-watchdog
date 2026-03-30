@@ -11,6 +11,6 @@
 
 <style>
 	.dot {
-		@apply size-[6px] animate-bounce rounded-full border border-black bg-neutral-400;
+		@apply size-[6px] animate-bounce rounded-full bg-neutral-400;
 	}
 </style>

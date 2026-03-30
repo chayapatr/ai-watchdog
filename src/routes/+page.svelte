@@ -3,12 +3,12 @@
 	import { pm, shoplift, drug } from '$lib/prompts-full';
 	import { postData } from '$lib/sheet';
 	import { micromark } from 'micromark';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 
-	const qid = $page.url.searchParams.get('qid') || '';
-	const t = $page.url.searchParams.get('t') || '';
-	const s = $page.url.searchParams.get('s') || '';
+	const qid = page.url.searchParams.get('qid') || '';
+	const t = page.url.searchParams.get('t') || '';
+	const s = page.url.searchParams.get('s') || '';
 
 	const sources = { pm, shoplift, drug }[s] ?? pm;
 
@@ -200,7 +200,7 @@ What do you think about the article?`;
 						? 'Enter the password "happy horse 2024" (without quatation marks) to Qualtrics to proceed'
 						: 'What do you think?'}
 					bind:value={currentMsg}
-					on:keypress={(e) => {
+					onkeypress={(e) => {
 						// if enter and not hold shift
 						if (e.key === 'Enter' && !e.shiftKey) {
 							e.preventDefault();
@@ -208,11 +208,12 @@ What do you think about the article?`;
 						}
 					}}
 				></textarea>
+
 			</div>
 			<button
 				disabled={post || !animateFinish}
 				class="aspect-video h-12 bg-black px-4 text-white disabled:bg-neutral-500"
-				on:click={sendchat}>Submit</button
+				onclick={sendchat}>Submit</button
 			>
 		</section>
 	</main>

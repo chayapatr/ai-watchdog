@@ -1,9 +1,9 @@
 <script>
 	import { onMount } from 'svelte';
 	import { micromark } from 'micromark';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	let text = '';
-	const s = $page.url.searchParams.get('s') || 'pm';
+	const s = page.url.searchParams.get('s') || 'pm';
 
 	onMount(async () => {
 		const raw = await fetch(`/articles/${s}.md`).then((x) => x.text());
