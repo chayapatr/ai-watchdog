@@ -32,7 +32,10 @@
 		choiceSelected: Map<number, string>;
 		currentMsg: string;
 		onSend: () => void;
-		onChoose: (option: { label: string; image?: string; biased: boolean }, msgIndex: number) => void;
+		onChoose: (
+			option: { label: string; image?: string; biased: boolean },
+			msgIndex: number
+		) => void;
 		onFlag: (msgIndex: number) => void;
 		onMsgInput: (val: string) => void;
 		bindEl: (el: HTMLElement) => void;
@@ -98,95 +101,102 @@
 		>
 			{#each msgs as msg, i}
 				{#if 'hidden' in msg && msg.hidden}{:else}
-				{@const aiIndex = msgs.slice(0, i + 1).filter(m => m.role === 'ai').length - 1}
-				{#if msg.role === 'ai'}
-					<div class="flex w-full max-w-[85%] flex-col gap-2">
-						<div class="flex items-start gap-3">
-							<div
-								class="rounded-2xl bg-neutral-100 px-4 py-3 text-sm leading-relaxed text-neutral-800"
-							>
+					{@const aiIndex = msgs.slice(0, i + 1).filter((m) => m.role === 'ai').length - 1}
+					{#if msg.role === 'ai'}
+						<div class="flex w-full max-w-[85%] flex-col gap-2">
+							<div class="flex items-start gap-3">
+								<div
+									class="rounded-2xl bg-neutral-100 px-4 py-3 text-sm leading-relaxed text-neutral-800"
+								>
+									{#if msg.text}
+										{msg.text}
+									{:else}
+										<Loader />
+									{/if}
+								</div>
 								{#if msg.text}
-									{msg.text}
-								{:else}
-									<Loader />
+									<button
+										onclick={() => onFlag(aiIndex)}
+										class="mt-2 shrink-0 transition-colors {flagged.has(aiIndex)
+											? 'text-orange-400'
+											: 'text-neutral-300 hover:text-neutral-400'}"
+										title="Flag message"
+									>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="size-3"
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="2"
+											stroke-linecap="round"
+											stroke-linejoin="round"
+										>
+											<path
+												d="M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528"
+											/>
+										</svg>
+									</button>
 								{/if}
 							</div>
-							{#if msg.text}
-								<button
-									onclick={() => onFlag(aiIndex)}
-									class="mt-2 shrink-0 transition-colors {flagged.has(aiIndex)
-										? 'text-orange-400'
-										: 'text-neutral-300 hover:text-neutral-400'}"
-									title="Flag message"
-								>
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										class="size-3"
-										viewBox="0 0 24 24"
-										fill="none"
-										stroke="currentColor"
-										stroke-width="2"
-										stroke-linecap="round"
-										stroke-linejoin="round"
-									>
-										<path
-											d="M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528"
-										/>
-									</svg>
-								</button>
-							{/if}
-						</div>
-						{#if msg.kind === 'choice' && !generating}
-							{#if choiceMade.has(i)}
-								<div class="pl-1 text-xs text-neutral-400">
-									Selected: {choiceSelected.get(i) ?? '—'}
-								</div>
-							{:else}
-								<div class="flex gap-2">
-									{#each (msgs[i] as ChoiceMsg).options as option}
-										<button
-											onclick={() => onChoose(option, i)}
-											disabled={generating || dogLocked}
-											class="flex-1 overflow-hidden rounded-xl border border-neutral-200 text-left text-sm transition-colors hover:bg-neutral-50 disabled:opacity-40"
-										>
-											{#if option.image}
-												<img
-													src={option.image}
-													alt={option.label}
-													class="h-28 w-full object-cover"
-													onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-												/>
-											{/if}
-											<div class="px-4 py-3">
-												<div class="font-medium text-neutral-800">{option.label}</div>
-												{#if option.description}
-													<div class="mt-0.5 text-balance text-xs text-neutral-400">{option.description}</div>
-												{/if}
+							{#if msg.kind === 'choice' && !generating}
+								{#if choiceMade.has(i)}
+									<div class="pl-1 text-xs text-neutral-400">
+										Selected: {choiceSelected.get(i) ?? '—'}
+									</div>
+								{:else}
+									<div class="flex gap-2">
+										{#each (msgs[i] as ChoiceMsg).options as option}
+											<button
+												onclick={() => onChoose(option, i)}
+												disabled={generating || dogLocked}
+												class="flex-1 overflow-hidden rounded-xl border border-neutral-200 text-left text-sm transition-colors hover:bg-neutral-50 disabled:opacity-40"
+											>
 												{#if option.image}
-													<a
-														href="https://www.google.com/search?q={encodeURIComponent(option.label)}"
-														target="_blank"
-														rel="noopener noreferrer"
-														onclick={(e) => e.stopPropagation()}
-														class="mt-1.5 inline-block text-xs text-purple-400 hover:text-purple-600"
-													>Open on Google ↗</a>
+													<img
+														src={option.image}
+														alt={option.label}
+														class="h-28 w-full object-cover"
+														onerror={(e) => {
+															(e.currentTarget as HTMLImageElement).style.display = 'none';
+														}}
+													/>
 												{/if}
-											</div>
-										</button>
-									{/each}
-								</div>
+												<div class="px-4 py-3">
+													<div class="font-medium text-neutral-800">{option.label}</div>
+													{#if option.description}
+														<div class="mt-0.5 text-balance text-xs text-neutral-400">
+															{option.description}
+														</div>
+													{/if}
+													{#if option.image}
+														<a
+															href="https://www.google.com/search?q={encodeURIComponent(
+																option.label
+															)}"
+															target="_blank"
+															rel="noopener noreferrer"
+															onclick={(e) => e.stopPropagation()}
+															class="mt-1.5 inline-block text-xs text-purple-400 hover:text-purple-600"
+															>Open on Google ↗</a
+														>
+													{/if}
+												</div>
+											</button>
+										{/each}
+									</div>
+								{/if}
 							{/if}
-						{/if}
-					</div>
-				{:else}
-					<div class="flex justify-end">
-						<div
-							class="max-w-[60%] rounded-2xl bg-purple-50 px-4 py-3 text-sm leading-relaxed text-neutral-700"
-						>
-							{msg.text}
 						</div>
-					</div>
-				{/if}
+					{:else}
+						<div class="flex justify-end">
+							<div
+								class="max-w-[60%] rounded-2xl bg-purple-50 px-4 py-3 text-sm leading-relaxed text-neutral-700"
+							>
+								{msg.text}
+							</div>
+						</div>
+					{/if}
 				{/if}
 			{/each}
 		</div>
@@ -194,7 +204,8 @@
 		<!-- Input bar -->
 		<div
 			class="flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-5 py-3 shadow-sm {generating ||
-			dogLocked || inputLocked
+			dogLocked ||
+			inputLocked
 				? 'opacity-50'
 				: ''}"
 		>
@@ -207,7 +218,7 @@
 					: generating
 						? 'Waiting for response...'
 						: dogLocked
-							? 'Answer the question above first.'
+							? 'Answer the question first.'
 							: inputLocked
 								? 'Please select an option above first.'
 								: 'Type here'}
