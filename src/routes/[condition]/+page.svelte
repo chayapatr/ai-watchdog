@@ -229,7 +229,7 @@
 
 	// ── User actions ───────────────────────────────────────────────────────────
 	const sendMsg = async () => {
-		if (!currentMsg.trim() || isDone || generating || dogLocked) return;
+		if (!currentMsg.trim() || isDone || generating || dogLocked || pendingChoiceLock) return;
 		const text = currentMsg.trim();
 		currentMsg = '';
 

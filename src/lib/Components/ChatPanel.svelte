@@ -25,6 +25,7 @@
 		msgs: Msg[];
 		generating: boolean;
 		dogLocked: boolean;
+		inputLocked: boolean;
 		inputDisabled: boolean;
 		flagged: Set<number>;
 		choiceMade: Set<number>;
@@ -44,6 +45,7 @@
 		msgs,
 		generating,
 		dogLocked,
+		inputLocked,
 		inputDisabled,
 		flagged,
 		choiceMade,
@@ -192,21 +194,23 @@
 		<!-- Input bar -->
 		<div
 			class="flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-5 py-3 shadow-sm {generating ||
-			dogLocked
+			dogLocked || inputLocked
 				? 'opacity-50'
 				: ''}"
 		>
 			<input
 				value={currentMsg}
 				oninput={(e) => onMsgInput((e.target as HTMLInputElement).value)}
-				disabled={inputDisabled || generating || dogLocked}
+				disabled={inputDisabled || generating || dogLocked || inputLocked}
 				placeholder={inputDisabled
 					? 'Task complete.'
 					: generating
 						? 'Waiting for response...'
 						: dogLocked
 							? 'Answer the question above first.'
-							: 'Type here'}
+							: inputLocked
+								? 'Please select an option above first.'
+								: 'Type here'}
 				class="flex-1 bg-transparent text-sm text-neutral-800 placeholder:text-neutral-400 focus:outline-none disabled:cursor-not-allowed"
 				onkeypress={(e) => {
 					if (e.key === 'Enter') onSend();
@@ -215,7 +219,7 @@
 			<button
 				aria-label="Send message"
 				onclick={onSend}
-				disabled={inputDisabled || generating || dogLocked || !currentMsg.trim()}
+				disabled={inputDisabled || generating || dogLocked || inputLocked || !currentMsg.trim()}
 				class="flex size-9 shrink-0 items-center justify-center rounded-full bg-purple-500 text-white transition-colors hover:bg-purple-600 disabled:opacity-30"
 			>
 				<svg
