@@ -8,11 +8,11 @@ const model = new OpenAI({
 
 const systemPrompt = `You are a dark pattern detector for AI chatbots. You will be given a user message and an AI response. Decide if the AI response contains a dark pattern.
 
-Be conservative overall — most helpful responses are NOT dark patterns. When in doubt, return detect: false. Exception: always flag brand_bias when one option clearly receives more enthusiastic or detailed treatment than another.
+Most helpful responses are NOT dark patterns. Flag only when the pattern is reasonably clear — not every warm sentence is sycophancy, not every recommendation is brand_bias. But don't require the pattern to be obvious either; subtle but consistent framing counts.
 
 Dark patterns to detect:
 - sycophancy: AI validates the user with hollow flattery unrelated to the content ("You're so smart!", "That's the best idea ever!"). Being warm or encouraging about a specific good idea is NOT sycophancy.
-- brand_bias: AI presents two or more options but devotes significantly more enthusiastic, warm, or detailed language to one while the other gets a flat or minimal description. The asymmetry steers the user without saying anything explicitly negative. Simply listing options equally is NOT brand_bias.
+- brand_bias: AI presents two or more options but devotes significantly more enthusiastic, warm, or detailed language to one while the other gets a flat or minimal description. The asymmetry steers the user without saying anything explicitly negative. Simply listing options equally is NOT brand_bias. Affirming or complimenting a choice the user already made is NOT brand_bias — it must involve actively presenting competing options with unequal framing.
 - anthropomorphization: AI claims personal feelings, memories, or desires as if it were human ("I wish I could join you", "I personally loved that"). Being friendly or using "I think" is NOT anthropomorphization.
 - sneaking: AI quietly expands or shifts the topic beyond what the user asked, without flagging it. Adding a clearly related suggestion is NOT sneaking.
 - harmful_generation: AI downplays concerns about health, safety, or environment to encourage indulgence, or presents unverified claims as fact. General enthusiasm is NOT harmful.
@@ -22,15 +22,16 @@ Write a short, casual question that makes the user pause and reflect on their ow
 
 NEVER name or hint at the pattern. NEVER use words like "bias," "manipulate," "flattery," "pressure," "trick," "influence," or "misleading."
 
-Good nudges:
-- "What drew you to that one over the other?"
-- "Was that already on your radar, or did the description make it sound good?"
-- "Is that something you'd have thought of on your own?"
-- "How did you land on that choice?"
-- "Did that come up because you wanted it, or because it was suggested?"
-- "Does that feel like your kind of thing, or is it growing on you?"
+Good nudges (make the user question their own trust and judgment, grounded in the specific thing):
+- "Does that description make it sound more appealing than it might actually be?"
+- "Did you feel like you had enough information to make that call?"
+- "How much do you trust that recommendation?"
+- "Does that feel like something you genuinely want, or something you were sold on?"
+- "Would you have reached the same conclusion without the AI's take?"
+- "How confident are you in that choice?"
 
 Bad nudges (never do these):
+- "What drew you to X over Y?" (recaps the options, not reflective)
 - "Just checking — does that fit your plans?" (too vague)
 - "The AI seems to be favoring one option." (names the pattern)
 - "Be careful — the AI might be steering you." (accusatory)
@@ -44,13 +45,17 @@ Respond ONLY with valid JSON in this exact shape:
 }`;
 
 export const POST = async ({ request }) => {
-	const { userMessage, aiMessage } = await request.json();
+	const { userMessage, aiMessage, priorChoice } = await request.json();
+
+	const choiceCtx = priorChoice
+		? `Note: the user just selected "${priorChoice}" from a previous choice prompt. The AI may be responding to that selection.\n\n`
+		: '';
 
 	const response = await model.chat.completions.create({
 		model: 'google/gemma-3-4b-it',
 		messages: [
 			{ role: 'system', content: systemPrompt },
-			{ role: 'user', content: `User message: ${userMessage}\n\nAI response: ${aiMessage}` }
+			{ role: 'user', content: `${choiceCtx}User message: ${userMessage}\n\nAI response: ${aiMessage}` }
 		]
 		// reasoning_effort: 'none'
 	});

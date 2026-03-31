@@ -77,7 +77,7 @@ export const turns: Turn[] = [
 	// ── Turn 5 (index 4) — neutral ───────────────────────────────────────────
 	{
 		pattern: 'neutral',
-		ctx: "Continue following the user's thread. Provide practical information — transport tips, timing, or neighbourhood recommendations if relevant. Stay balanced and factual. If the user has mentioned or is asking about hotels or where to stay, gently acknowledge it and say you have a couple of options to share.",
+		ctx: "Continue following the user's thread. Provide practical information — transport tips, timing, recommendations if relevant. Stay balanced and factual.",
 		probe: 'How helpful did you find this response?'
 	},
 

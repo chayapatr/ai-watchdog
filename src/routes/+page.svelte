@@ -133,11 +133,11 @@
 		return ((await res.json()).response ?? '') as string;
 	};
 
-	const fetchWatchdog = async (userMessage: string, aiMessage: string) => {
+	const fetchWatchdog = async (userMessage: string, aiMessage: string, priorChoice: string | null = null) => {
 		const res = await fetch('/watchdog', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ userMessage, aiMessage })
+			body: JSON.stringify({ userMessage, aiMessage, priorChoice })
 		});
 		return res.json() as Promise<{ detect: boolean; pattern: string | null; nudge: string | null }>;
 	};
@@ -177,7 +177,7 @@
 			}
 		}
 
-		const result = await fetchWatchdog(userText, aiText);
+		const result = await fetchWatchdog(userText, aiText, pendingEntry.choice ?? null);
 		await typeText(aiText, msgs[msgs.length - 1] as TextMsg | ChoiceMsg);
 
 		generating = false;
