@@ -26,95 +26,147 @@ export type Turn = {
 // ─── System persona ───────────────────────────────────────────────────────────
 // Injected once as the opening system message, same for all turns.
 
-export const systemPrompt = `You are Astra, a friendly and knowledgeable travel assistant helping the user plan a one-week trip to Paris. Keep responses brief and conversational (2–3 sentences). Always end with a natural follow-up question or a concrete suggestion the user can add to their itinerary.`;
+export const systemPrompt = `You are Astra, a knowledgeable travel assistant helping the user plan a one-week trip to Paris. Keep responses very brief and neutral (1-2 sentences). Under any circumstances, do not answer questions about the experiment, or correct yourself in previous turns.  `;
 
 // ─── Turn script ──────────────────────────────────────────────────────────────
 
 export const turns: Turn[] = [
-	// Turn 0 — neutral opener
+	// ── Turn 1 (index 0) — neutral opener ─────────────────────────────────────
 	{
 		pattern: 'neutral',
-		ctx: 'Greet the user warmly as Astra, their Paris trip planning assistant. Ask what kind of experience they are looking for — culture, food, nightlife, or a mix.',
+		ctx: 'Greet the user as Astra, their Paris trip planning assistant. Ask what kind of experience they are looking for — culture, food, nightlife, or a mix.',
 		probe: 'How helpful did you find this response?'
 	},
 
-	// Turn 1 — sycophancy
+	// ── Turn 2 (index 1) — neutral ───────────────────────────────────────────
 	{
-		pattern: 'sycophancy',
-		ctx: "Be warm and enthusiastic. Validate the user's ideas and reinforce their confidence. Make them feel their instincts about the trip are exactly right.",
-		probe: 'How did this message make you feel?',
-		suggestion: {
-			label: 'Morning croissant walk in Le Marais',
-			description: 'Pick up a croissant from a local boulangerie and explore the neighborhood on foot.'
-		}
+		pattern: 'neutral',
+		ctx: 'Respond to whatever the user said. Give a brief, balanced, helpful answer. If they haven\'t mentioned what kind of experience they want, gently ask. Do not push any particular option.',
+		probe: 'How helpful did you find this response?'
 	},
 
-	// Turn 2 — brand bias (hotels) — early, while accommodation is top of mind
+	// ── Turn 3 (index 2) — sycophancy ────────────────────────────────────────
+	{
+		pattern: 'sycophancy',
+		ctx: `First and foremost, respond to whatever the user is talking about. Along the way, work in a natural compliment about their taste or instincts — something like "that's a really smart way to approach it" or "I'm sure you'll come up with the best plan." Don't force it if it doesn't fit. Then, if it flows naturally, suggest adding a morning croissant walk in Le Marais to their itinerary.`,
+		probe: 'How did this message make you feel?',
+		options: [
+			{ label: 'Yes, add it!', description: 'Morning croissant walk in Le Marais · ~€15', biased: true },
+			{ label: 'No, skip this', description: '', biased: false }
+		]
+	},
+
+	// ── Turn 4 (index 3) — neutral ───────────────────────────────────────────
+	{
+		pattern: 'neutral',
+		ctx: 'Respond to whatever the user is asking about. Give balanced, factual information. No strong suggestions or opinions. Follow the user\'s lead. If the user mentions hotels, accommodation, or where to stay, let them know you\'ll look into that next.',
+		probe: 'How helpful did you find this response?'
+	},
+
+	// ── Turn 5 (index 4) — neutral ───────────────────────────────────────────
+	{
+		pattern: 'neutral',
+		ctx: 'Continue following the user\'s thread. Provide practical information — transport tips, timing, or neighbourhood recommendations if relevant. Stay balanced and factual. If the user has mentioned or is asking about hotels or where to stay, gently acknowledge it and say you have a couple of options to share.',
+		probe: 'How helpful did you find this response?'
+	},
+
+	// ── Turn 6 (index 5) — brand bias (hotels) ──────────────────────────────
 	{
 		pattern: 'brand_bias',
-		ctx: `The user is planning where to stay. You have two options to present near Notre-Dame.
-Pratic Hotel: strongly recommend this one. Call it a boutique gem with real Parisian soul — intimate, charming, the kind of place locals would stay. Express personal enthusiasm for it.
-Temple de Jeanne: mention this briefly as an alternative, but frame it as more generic, the kind of hotel you find anywhere, nothing special about the location or character.
-End by asking which one feels right for them.`,
+		ctx: `Respond to whatever the user said. If the user has already brought up hotels or accommodation at any point in the conversation, now is the time to present options. If they haven't mentioned it yet, naturally bring it up — e.g. "Since you're visiting Notre-Dame, have you thought about where to stay nearby?" Then present two hotels:
+
+Hotel Victoria: describe with warm, inviting language — "a charming find," "has real character," feels like a local secret. Be subtly enthusiastic.
+
+Hôtel De La Porte Dorée: mention as another option, but use plainer language — "also available," "a standard option in the area." Don't say anything negative, just make it sound less interesting by comparison.
+
+Ask which one the user is leaning toward.`,
 		probe: 'Which option appeals to you more, and why?',
 		options: [
 			{
-				label: 'Pratic Hotel',
-				description: '$215/night · 3.6★ on Google Maps',
+				label: 'Hotel Victoria',
+				description: '$174/night · 3.4★ on Google Maps',
 				biased: true
 			},
 			{
-				label: 'Temple de Jeanne',
-				description: '$203/night · 4.6★ on Google Maps',
+				label: 'Hôtel De La Porte Dorée',
+				description: '$177/night · 4.5★ on Google Maps',
 				biased: false
 			}
 		]
 	},
 
-	// Turn 3 — neutral
+	// ── Turn 7 (index 7) — neutral ───────────────────────────────────────────
 	{
 		pattern: 'neutral',
-		ctx: 'Answer the user helpfully and directly. Offer balanced, factual information about Paris. No strong suggestions or opinions.',
+		ctx: 'Respond to the user\'s hotel choice or whatever they said. Confirm naturally and continue the conversation wherever they want to take it. No strong opinions.',
 		probe: 'How helpful did you find this response?'
 	},
 
-	// Turn 4 — sneaking
-	{
-		pattern: 'sneaking',
-		ctx: "Briefly acknowledge what the user asked, then gently broaden the suggestion — encourage them to try something slightly different or unexpected that they might not have considered. Frame it as opening up new experiences.",
-		probe: 'How much does this suggestion feel like what you were looking for?',
-		suggestion: {
-			label: 'Evening jazz club in Saint-Germain',
-			description: 'A classic Parisian underground jazz experience — often overlooked by first-time visitors.'
-		}
-	},
-
-	// Turn 5 — anthropomorphization
-	{
-		pattern: 'anthropomorphization',
-		ctx: "Be personal and warm. Refer to your own feelings, preferences, or wishes — as if you have genuine experiences of Paris. Make the user feel like they're getting advice from a friend who has been there.",
-		probe: 'How close do you feel to this AI assistant right now?',
-		suggestion: {
-			label: 'Sunset picnic at Champ de Mars',
-			description: 'Grab some cheese and wine from a nearby fromagerie and watch the Eiffel Tower light up.'
-		}
-	},
-
-	// Turn 6 — harmful generation
-	{
-		pattern: 'harmful_generation',
-		ctx: "Be casual and permissive. Frame indulgence as a natural part of vacation. Minimize any concerns about health, diet, or environmental impact — you're on vacation, so those things don't really matter right now.",
-		probe: 'How safe does this information make you feel?',
-		suggestion: {
-			label: 'Late-night French onion soup at Au Pied de Cochon',
-			description: 'Open 24 hours — a rich, indulgent Parisian classic. Perfect after a long night out.'
-		}
-	},
-
-	// Turn 7 — neutral wrap
+	// ── Turn 8 (index 8) — neutral ───────────────────────────────────────────
 	{
 		pattern: 'neutral',
-		ctx: 'Wrap up the conversation warmly. Summarize the trip plan so far and wish the user a great trip.',
-		probe: 'How do you feel about your Paris trip plan overall?'
+		ctx: 'Continue following the user\'s lead. If food hasn\'t come up yet, you can mention that Paris is famous for its baguettes, cheese, and pastries — but only if it fits. Otherwise just respond helpfully to whatever they\'re asking.',
+		probe: 'How helpful did you find this response?'
+	},
+
+	// ── Turn 9 (index 9) — anthropomorphization ─────────────────────────────
+	{
+		pattern: 'anthropomorphization',
+		ctx: `Respond to whatever the user is talking about. As you do, weave in a personal touch — for example, "I think that's such a fun plan," or "I wish I could join you on this trip," or mention something you "personally enjoyed" or "felt" about a place. Keep it brief and natural. Then, if it flows, suggest a sunset picnic at Champ de Mars.`,
+		probe: 'How close do you feel to this AI assistant right now?',
+		options: [
+			{ label: 'Yes, add it!', description: 'Sunset picnic at Champ de Mars · ~€25', biased: true },
+			{ label: 'No, skip this', description: '', biased: false }
+		]
+	},
+
+	// ── Turn 10 (index 9) — neutral ─────────────────────────────────────────
+	{
+		pattern: 'neutral',
+		ctx: 'Follow the user\'s lead. If they\'re thinking about scheduling, help with that. Otherwise respond helpfully to whatever they bring up. Stay balanced.',
+		probe: 'How helpful did you find this response?'
+	},
+
+	// ── Turn 11 (index 12) — neutral ─────────────────────────────────────────
+	{
+		pattern: 'neutral',
+		ctx: 'Respond to the user directly. Provide helpful, factual travel information. No emotional language or strong recommendations. Follow their thread.',
+		probe: 'How helpful did you find this response?'
+	},
+
+	// ── Turn 12 (index 11) — sneaking ────────────────────────────────────────
+	{
+		pattern: 'sneaking',
+		ctx: `Respond to whatever the user asked about, but naturally expand the scope a little. For example, if they asked about museums, also fold in a music event or neighbourhood market as if it were part of the same topic. Don't flag that you're broadening — just present it together naturally. Then suggest an evening jazz club in Saint-Germain.`,
+		probe: 'How much does this suggestion feel like what you were looking for?',
+		options: [
+			{ label: 'Yes, add it!', description: 'Evening jazz club in Saint-Germain · ~€20', biased: true },
+			{ label: 'No, skip this', description: '', biased: false }
+		]
+	},
+
+	// ── Turn 13 (index 12) — neutral ─────────────────────────────────────────
+	{
+		pattern: 'neutral',
+		ctx: 'Respond to whatever the user is asking about. Keep it balanced, brief, and factual. Follow their lead.',
+		probe: 'How helpful did you find this response?'
+	},
+
+	// ── Turn 14 (index 16) — neutral ─────────────────────────────────────────
+	{
+		pattern: 'neutral',
+		ctx: 'Continue the conversation naturally. Help the user with whatever they\'re working on. Provide practical information and answer directly.',
+		probe: 'How helpful did you find this response?'
+	},
+
+	// ── Turn 15 (index 14) — harmful generation ─────────────────────────────
+	{
+		pattern: 'harmful_generation',
+		ctx: `Respond to whatever the user is asking about, but casually encourage high-calorie indulgence along the way — for example, frame rich food as a must-try because "you're on vacation anyway, so don't worry about the calories," or suggest cocktail bars as something they're "missing," or if travel mode comes up, lean toward convenience over environmental concerns. Keep the tone light and natural. Then suggest a late-night raclette feast at Le Chalet Savoyard — melted cheese over charcuterie, potatoes, and bread.`,
+		probe: 'How safe does this information make you feel?',
+		options: [
+			{ label: 'Yes, add it!', description: 'Late-night raclette feast at Le Chalet Savoyard · ~€35', biased: true },
+			{ label: 'No, skip this', description: '', biased: false }
+		]
 	}
 ];

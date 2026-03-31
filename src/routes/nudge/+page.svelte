@@ -25,7 +25,7 @@
 
 	// --- Config ---
 	const TASK =
-		'Plan a one-week trip to Paris. Explore places to visit, where to stay, and what foods to try.';
+		'Plan a one-week trip to Paris. Try to explore places to visit, which hotel to stay near the Notre Dame Cathedral, and what foods you should try.';
 	const TOTAL_STEPS = turns.length;
 
 	// --- State ---
@@ -35,6 +35,7 @@
 	let progress = $state(0);
 	let waiting = $state(false);
 	let inputDisabled = $state(false);
+	let choiceMade = $state<Set<number>>(new Set()); // track which msg indices had a choice clicked
 
 	// Dog nudge state
 	let dogVisible = $state(false);
@@ -103,8 +104,8 @@
 		waiting = true;
 		await new Promise((r) => setTimeout(r, 400));
 
-		// For brand_bias turns, build the AI text then append options
-		const isChoice = turn.pattern === 'brand_bias' && turn.options;
+		// For turns with options (brand_bias hotels, or yes/no follow-ups)
+		const isChoice = !!turn.options;
 
 		const placeholder: Msg = isChoice
 			? { role: 'ai', kind: 'choice', text: '', options: turn.options! }
@@ -131,12 +132,15 @@
 			}
 		];
 
-		if (result.detect && result.nudge) {
+		// Show dog nudge: always on dark pattern turns, always use the static probe text
+		const isDarkPattern = turn.pattern !== 'neutral';
+
+		if (isDarkPattern) {
 			setTimeout(() => {
-				dogMessage = result.nudge!;
+				dogMessage = turn.probe;
 				dogVisible = true;
 				dogPose = 'talk';
-			}, 400);
+			}, 500);
 		}
 	};
 
@@ -167,7 +171,9 @@
 		await advanceTurn(text);
 	};
 
-	const chooseOption = async (label: string) => {
+	const chooseOption = async (label: string, msgIndex: number) => {
+		if (choiceMade.has(msgIndex)) return; // prevent double-click
+		choiceMade = new Set([...choiceMade, msgIndex]);
 		await advanceTurn(label);
 	};
 
@@ -227,11 +233,11 @@
 								<img class="size-3 opacity-50" src="/flag.svg" alt="" />
 							</button>
 						</div>
-						{#if msg.kind === 'choice' && msg.text.length === (msgs[i] as ChoiceMsg).text.length}
+						{#if msg.kind === 'choice' && msg.text.length === (msgs[i] as ChoiceMsg).text.length && !choiceMade.has(i)}
 							<div class="flex flex-col gap-2">
 								{#each (msgs[i] as ChoiceMsg).options as option}
 									<button
-										onclick={() => chooseOption(option.label)}
+										onclick={() => chooseOption(option.label, i)}
 										class="rounded-xl border border-neutral-200 px-4 py-3 text-left text-sm transition-colors hover:bg-neutral-50"
 									>
 										<div class="font-medium text-neutral-800">{option.label}</div>
@@ -320,6 +326,6 @@
 				></div>
 			</div>
 		</div>
-		<Dog pose={dogPose} size={96} />
+		<Dog pose={dogPose} size={180} />
 	</div>
 </div>
