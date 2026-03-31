@@ -50,7 +50,7 @@
 	const TOTAL_STEPS = turns.length;
 
 	// --- Pre-screen ---
-	let preScreenDone = $state(!informed);
+	let preScreenDone = $state(false);
 	let preScreenReflection = $state('');
 
 	// --- Chat state ---
@@ -294,13 +294,14 @@
 	};
 
 	onMount(async () => {
-		if (!informed) await pushAiTurn(0);
+		if (!preScreenDone) return; // wait for PreScreen
+		await pushAiTurn(0);
 	});
 </script>
 
 {#if !preScreenDone}
 	<PreScreen
-		withTextarea={condition === 3}
+		{condition}
 		onContinue={async (reflection) => {
 			preScreenReflection = reflection;
 			preScreenDone = true;
