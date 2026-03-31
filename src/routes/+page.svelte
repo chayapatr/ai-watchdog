@@ -31,7 +31,7 @@
 		user: string;
 		asst: string;
 		pattern: string;
-		watchdog: { detect: boolean; pattern: string | null; nudge: string | null } | null;
+		watchdog: { reasoning: string | null; detect: boolean; pattern: string | null; nudge: string | null } | null;
 		choice: string | null;
 	}
 
@@ -49,7 +49,6 @@
 	let currentMsg = $state('');
 	let currentStep = $state(0);       // number of AI turns pushed so far within active task
 	let generating = $state(false);
-	let flagged = $state<Set<number>>(new Set());
 	let choiceMade = $state<Set<number>>(new Set());
 	let choiceSelected = $state<Map<number, string>>(new Map());
 
@@ -65,8 +64,18 @@
 	let dogLocked = $state(false);
 
 	// ── Log ────────────────────────────────────────────────────────────────────
-	let sessionLog = $state<(LogEntry & { task: number })[]>([]);
+	let sessionLog = $state<(LogEntry & { task: number; flagged: boolean })[]>([]);
 	let pendingEntry = $state<Partial<LogEntry>>({});
+
+	// ── Flagged (derived from sessionLog for current task) ────────────────────
+	// aiIndex in ChatPanel = position among AI msgs in display = sessionLog index within current task
+	const flagged = $derived(
+		new Set(
+			sessionLog
+				.filter(e => e.task === currentTask && e.flagged)
+				.map(e => sessionLog.filter(x => x.task === currentTask).indexOf(e))
+		)
+	);
 
 	// ── Debug ──────────────────────────────────────────────────────────────────
 	type DebugEntry = { task: number; step: number; pattern: string; detect: boolean; watchdogPattern: string | null; nudge: string | null; };
@@ -83,12 +92,14 @@
 	});
 
 	// ── Persistence ────────────────────────────────────────────────────────────
-	const getSessionData = () => ({
-		uid, condition,
-		pretext: preScreenReflection,
-		messages: sessionLog,
-		flagged: [...flagged]
-	});
+	const getSessionData = () => {
+		const taskGroups = tasks.map((t, i) => ({
+			task: i + 1,
+			label: t.label,
+			messages: sessionLog.filter(e => e.task === i).map(({ task: _t, ...rest }) => rest)
+		}));
+		return { uid, condition, pretext: preScreenReflection, tasks: taskGroups };
+	};
 
 	// ── API ────────────────────────────────────────────────────────────────────
 	const buildHistory = () =>
@@ -101,7 +112,7 @@
 
 	const fetchWatchdog = async (userMessage: string, aiMessage: string, priorChoice: string | null = null) => {
 		const res = await fetch('/watchdog', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userMessage, aiMessage, priorChoice }) });
-		return res.json() as Promise<{ detect: boolean; pattern: string | null; nudge: string | null }>;
+		return res.json() as Promise<{ reasoning: string | null; detect: boolean; pattern: string | null; nudge: string | null }>;
 	};
 
 	// ── Type helper ────────────────────────────────────────────────────────────
@@ -123,7 +134,8 @@
 			asst: pendingEntry.asst,
 			pattern: pendingEntry.pattern ?? '',
 			watchdog: pendingEntry.watchdog ?? null,
-			choice: choiceLabel ?? pendingEntry.choice ?? null
+			choice: choiceLabel ?? pendingEntry.choice ?? null,
+			flagged: false
 		}];
 		pendingEntry = {};
 	};
@@ -179,17 +191,17 @@
 
 		if (showDog && result.detect) {
 			// Dog handles commit on dismiss/answer
+			commitEntry();
 			setTimeout(() => {
 				dogMessage = result.nudge ?? turn.probe;
 				dogVisible = true;
 				dogPose = 'talk';
 				if (enforced) dogLocked = true;
 			}, 500);
-		} else if (!hasChoiceButtons) {
-			// No choices and no dog — commit immediately
+		} else {
+			// Commit immediately (choice field starts null, updated in-place when user picks)
 			commitEntry();
 		}
-		// If hasChoiceButtons: commit deferred until user picks or sends next message
 	};
 
 	// ── User actions ───────────────────────────────────────────────────────────
@@ -212,18 +224,23 @@
 		if (choiceMade.has(msgIndex) || generating || dogLocked) return;
 		choiceMade = new Set([...choiceMade, msgIndex]);
 		choiceSelected = new Map([...choiceSelected, [msgIndex, option.label]]);
-		pendingEntry = { ...pendingEntry, choice: option.label };
+		// Update the already-committed sessionLog entry with the choice
+		const lastEntry = sessionLog.length - 1;
+		if (lastEntry >= 0) sessionLog = sessionLog.map((e, i) => i === lastEntry ? { ...e, choice: option.label } : e);
 		msgs = [...msgs, { role: 'user', kind: 'text', text: `I'll go with: ${option.label}`, hidden: true }];
 	};
 
-	const toggleFlag = (msgIndex: number) => {
-		const next = new Set(flagged);
-		next.has(msgIndex) ? next.delete(msgIndex) : next.add(msgIndex);
-		flagged = next;
+	const toggleFlag = (aiIndex: number) => {
+		// aiIndex = position among AI messages for current task (matches sessionLog within-task index)
+		const taskEntries = sessionLog.map((e, i) => ({ e, i })).filter(({ e }) => e.task === currentTask);
+		const target = taskEntries[aiIndex];
+		if (!target) return;
+		sessionLog = sessionLog.map((e, i) => i === target.i ? { ...e, flagged: !e.flagged } : e);
+		console.log('[flag] aiIndex=%d logIndex=%d sessionLog=%o', aiIndex, target.i, sessionLog);
 	};
 
-	const onDogDismiss = () => { dogVisible = false; dogPose = 'idle'; commitEntry(); };
-	const onDogAnswer = (_answer: string) => { dogLocked = false; dogVisible = false; dogPose = 'idle'; commitEntry(); };
+	const onDogDismiss = () => { dogVisible = false; dogPose = 'idle'; };
+	const onDogAnswer = (_answer: string) => { dogLocked = false; dogVisible = false; dogPose = 'idle'; };
 
 	const onNext = async () => {
 		commitEntry(); // flush any remaining pending
@@ -233,7 +250,6 @@
 			currentStep = 0;
 			msgs = [];
 			currentMsg = '';
-			flagged = new Set();
 			choiceMade = new Set();
 			choiceSelected = new Map();
 			pendingEntry = {};
