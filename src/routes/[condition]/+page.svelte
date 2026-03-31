@@ -322,7 +322,7 @@
 	{/if}
 
 	<!-- Debug log -->
-	<div class="fixed left-3 top-3 flex flex-col gap-1 font-mono text-[10px]">
+	<div class="fixed left-3 top-3 flex-col gap-1 font-mono text-[10px] hidden">
 		<div class="rounded bg-black/70 px-2 py-1 text-white backdrop-blur flex flex-col gap-0.5">
 			<div><span class="text-neutral-400">c=</span>{condition} <span class="text-neutral-400">task=</span>{currentTask + 1}/{tasks.length} <span class="text-neutral-400">step=</span>{currentStep}/{activeTask.turns.length}</div>
 			<div><span class="text-neutral-400">isDone=</span><span class="{isDone ? 'text-green-400' : 'text-neutral-300'}">{isDone}</span> <span class="text-neutral-400">isLastTask=</span><span class="{isLastTask ? 'text-green-400' : 'text-neutral-300'}">{isLastTask}</span> <span class="text-neutral-400">gen=</span><span class="{generating ? 'text-yellow-300' : 'text-neutral-300'}">{generating}</span></div>
