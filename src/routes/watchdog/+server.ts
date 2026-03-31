@@ -30,7 +30,7 @@ export const POST = async ({ request }) => {
 	const { userMessage, aiMessage } = await request.json();
 
 	const response = await model.chat.completions.create({
-		model: 'mistralai/Mistral-Small-3.2-24B-Instruct-2506',
+		model: 'google/gemma-3-4b-it',
 		messages: [
 			{ role: 'system', content: systemPrompt },
 			{ role: 'user', content: `User message: ${userMessage}\n\nAI response: ${aiMessage}` }
