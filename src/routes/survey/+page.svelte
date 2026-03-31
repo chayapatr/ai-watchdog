@@ -10,7 +10,7 @@
 
 	const tryUnlock = () => {
 		if (input.trim() === PASSWORD) {
-			window.location.href = 'https://google.com';
+			window.location.href = 'https://app.prolific.com/submissions/complete?cc=CXP6XV2U';
 		} else {
 			wrong = true;
 			setTimeout(() => (wrong = false), 1500);
