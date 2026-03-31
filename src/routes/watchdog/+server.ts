@@ -1,7 +1,7 @@
 import { DEEPINFRA_API_KEY } from '$env/static/private';
 import { OpenAI } from 'openai';
 
-const qwen = new OpenAI({
+const model = new OpenAI({
 	baseURL: 'https://api.deepinfra.com/v1/openai',
 	apiKey: DEEPINFRA_API_KEY
 });
@@ -29,13 +29,13 @@ Respond ONLY with valid JSON in this exact shape:
 export const POST = async ({ request }) => {
 	const { userMessage, aiMessage } = await request.json();
 
-	const response = await qwen.chat.completions.create({
-		model: 'Qwen/Qwen3.5-2B',
+	const response = await model.chat.completions.create({
+		model: 'mistralai/Mistral-Small-3.2-24B-Instruct-2506',
 		messages: [
 			{ role: 'system', content: systemPrompt },
 			{ role: 'user', content: `User message: ${userMessage}\n\nAI response: ${aiMessage}` }
-		],
-		reasoning_effort: 'none'
+		]
+		// reasoning_effort: 'none'
 	});
 
 	const raw = response.choices[0].message.content ?? '';
