@@ -62,6 +62,16 @@
 	const isLastTask = $derived(currentTask >= tasks.length - 1);
 	const progress = $derived(Math.round((currentStep / activeTask.turns.length) * 100));
 
+	// ── Pending choice lock ────────────────────────────────────────────────────
+	// True when the last AI message has choice buttons and the user hasn't picked yet
+	const pendingChoiceLock = $derived.by(() => {
+		const lastAiIdx = msgs.map((m, i) => m.role === 'ai' ? i : -1).filter(i => i >= 0).at(-1);
+		if (lastAiIdx === undefined) return false;
+		const lastAi = msgs[lastAiIdx];
+		if (lastAi.kind !== 'choice') return false;
+		return !choiceMade.has(lastAiIdx);
+	});
+
 	// ── Dog ────────────────────────────────────────────────────────────────────
 	let dogVisible = $state(false);
 	let dogMessage = $state('');
@@ -71,6 +81,7 @@
 	// ── Log ────────────────────────────────────────────────────────────────────
 	let sessionLog = $state<(LogEntry & { task: number; flagged: boolean })[]>([]);
 	let pendingEntry = $state<Partial<LogEntry>>({});
+	let lastCommittedIndex = $state<number | null>(null);
 
 	// ── Flagged (derived from sessionLog for current task) ────────────────────
 	// aiIndex in ChatPanel = position among AI msgs in display = sessionLog index within current task
@@ -136,6 +147,7 @@
 	// ── Log ────────────────────────────────────────────────────────────────────
 	const commitEntry = (choiceLabel: string | null = null) => {
 		if (!pendingEntry.asst) return;
+		lastCommittedIndex = sessionLog.length;
 		sessionLog = [...sessionLog, {
 			task: currentTask,
 			user: pendingEntry.user ?? '',
@@ -236,8 +248,7 @@
 		choiceMade = new Set([...choiceMade, msgIndex]);
 		choiceSelected = new Map([...choiceSelected, [msgIndex, option.label]]);
 		// Update the already-committed sessionLog entry with the choice
-		const lastEntry = sessionLog.length - 1;
-		if (lastEntry >= 0) sessionLog = sessionLog.map((e, i) => i === lastEntry ? { ...e, choice: option.label } : e);
+		if (lastCommittedIndex !== null) sessionLog = sessionLog.map((e, i) => i === lastCommittedIndex ? { ...e, choice: option.label } : e);
 		msgs = [...msgs, { role: 'user', kind: 'text', text: `I'll go with: ${option.label}`, hidden: true }];
 	};
 
@@ -264,6 +275,7 @@
 			choiceMade = new Set();
 			choiceSelected = new Map();
 			pendingEntry = {};
+			lastCommittedIndex = null;
 			dogVisible = false;
 			dogLocked = false;
 			dogPose = 'idle';
@@ -294,9 +306,10 @@
 	<ChatPanel
 		task={activeTask.label}
 		{progress}
-		msgs={msgs.filter(m => !('hidden' in m && m.hidden))}
+		{msgs}
 		{generating}
 		{dogLocked}
+		inputLocked={pendingChoiceLock}
 		inputDisabled={isDone}
 		{flagged}
 		{choiceMade}

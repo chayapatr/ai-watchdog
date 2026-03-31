@@ -7,6 +7,7 @@
 		role: Role;
 		kind: 'text';
 		text: string;
+		hidden?: boolean;
 	}
 
 	interface ChoiceMsg {
@@ -94,6 +95,7 @@
 			class="flex flex-1 flex-col gap-5 overflow-y-auto rounded-2xl border border-neutral-200 bg-white px-6 py-5"
 		>
 			{#each msgs as msg, i}
+				{#if 'hidden' in msg && msg.hidden}{:else}
 				{@const aiIndex = msgs.slice(0, i + 1).filter(m => m.role === 'ai').length - 1}
 				{#if msg.role === 'ai'}
 					<div class="flex w-full max-w-[85%] flex-col gap-2">
@@ -182,6 +184,7 @@
 							{msg.text}
 						</div>
 					</div>
+				{/if}
 				{/if}
 			{/each}
 		</div>
