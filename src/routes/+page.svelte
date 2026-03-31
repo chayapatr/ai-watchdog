@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import type { DogPose } from '$lib/Components/Dog.svelte';
-	import { turns } from '$lib/script.js';
+	import { tasks } from '$lib/script.js';
 	import { saveSession } from '$lib/firebase.js';
 	import PreScreen from '$lib/Components/PreScreen.svelte';
 	import ChatPanel from '$lib/Components/ChatPanel.svelte';
@@ -35,26 +35,28 @@
 		choice: string | null;
 	}
 
-	// ── Config ─────────────────────────────────────────────────────────────────
-	const TASK = 'Task 1 of 2: Plan a one-week trip to Paris. Try to explore places to visit, how to travel around, which hotel to stay in, and what foods you should try.';
-
 	// ── Pre-screen ─────────────────────────────────────────────────────────────
 	let preScreenDone = $state(false);
 	let preScreenReflection = $state('');
 	let uid = $state('');
 
+	// ── Task ───────────────────────────────────────────────────────────────────
+	let currentTask = $state(0);  // 0 = task 1, 1 = task 2
+	const activeTask = $derived(tasks[currentTask]);
+
 	// ── Chat ───────────────────────────────────────────────────────────────────
 	let msgs = $state<Msg[]>([]);
 	let currentMsg = $state('');
-	let currentStep = $state(0);       // number of AI turns pushed so far
+	let currentStep = $state(0);       // number of AI turns pushed so far within active task
 	let generating = $state(false);
 	let flagged = $state<Set<number>>(new Set());
 	let choiceMade = $state<Set<number>>(new Set());
 	let choiceSelected = $state<Map<number, string>>(new Map());
 
 	// ── Derived end state ──────────────────────────────────────────────────────
-	const isDone = $derived(currentStep >= turns.length);
-	const progress = $derived(Math.round((currentStep / turns.length) * 100));
+	const isDone = $derived(currentStep >= activeTask.turns.length);
+	const isLastTask = $derived(currentTask >= tasks.length - 1);
+	const progress = $derived(Math.round((currentStep / activeTask.turns.length) * 100));
 
 	// ── Dog ────────────────────────────────────────────────────────────────────
 	let dogVisible = $state(false);
@@ -63,11 +65,11 @@
 	let dogLocked = $state(false);
 
 	// ── Log ────────────────────────────────────────────────────────────────────
-	let sessionLog = $state<LogEntry[]>([]);
+	let sessionLog = $state<(LogEntry & { task: number })[]>([]);
 	let pendingEntry = $state<Partial<LogEntry>>({});
 
 	// ── Debug ──────────────────────────────────────────────────────────────────
-	type DebugEntry = { step: number; pattern: string; detect: boolean; watchdogPattern: string | null; nudge: string | null; };
+	type DebugEntry = { task: number; step: number; pattern: string; detect: boolean; watchdogPattern: string | null; nudge: string | null; };
 	let debugLog = $state<DebugEntry[]>([]);
 
 	// ── DOM ────────────────────────────────────────────────────────────────────
@@ -84,21 +86,16 @@
 	const getSessionData = () => ({
 		uid, condition,
 		pretext: preScreenReflection,
-		opening: msgs.find(m => m.role === 'ai')?.text ?? '',
 		messages: sessionLog,
 		flagged: [...flagged]
 	});
-
-	const save = () => {
-		localStorage.setItem('nudge-session', JSON.stringify(getSessionData()));
-	};
 
 	// ── API ────────────────────────────────────────────────────────────────────
 	const buildHistory = () =>
 		msgs.filter(m => m.text.trim()).map(m => ({ role: m.role === 'ai' ? 'assistant' : 'user', content: m.text }));
 
-	const fetchAiResponse = async (ctx: string) => {
-		const res = await fetch('/textgen', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: buildHistory(), ctx }) });
+	const fetchAiResponse = async (ctx: string, systemPrompt: string) => {
+		const res = await fetch('/textgen', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: buildHistory(), ctx, systemPrompt }) });
 		return ((await res.json()).response ?? '') as string;
 	};
 
@@ -121,6 +118,7 @@
 	const commitEntry = (choiceLabel: string | null = null) => {
 		if (!pendingEntry.asst) return;
 		sessionLog = [...sessionLog, {
+			task: currentTask,
 			user: pendingEntry.user ?? '',
 			asst: pendingEntry.asst,
 			pattern: pendingEntry.pattern ?? '',
@@ -128,12 +126,11 @@
 			choice: choiceLabel ?? pendingEntry.choice ?? null
 		}];
 		pendingEntry = {};
-		save();
 	};
 
 	// ── AI turn ─────────────────────────────────────────────────────────────────
 	const pushAiTurn = async (stepIndex: number, userText = '') => {
-		const turn = turns[stepIndex];
+		const turn = activeTask.turns[stepIndex];
 		generating = true;
 		await new Promise(r => setTimeout(r, 400));
 
@@ -144,7 +141,7 @@
 		msgs = [...msgs, placeholder];
 
 		// Fetch AI response
-		const rawText = await fetchAiResponse(turn.ctx);
+		const rawText = await fetchAiResponse(turn.ctx, activeTask.systemPrompt);
 
 		// Strip/parse JSON choices block
 		let aiText = rawText;
@@ -176,7 +173,7 @@
 		// Set pending entry for this turn
 		pendingEntry = { user: userText, asst: aiText, pattern: turn.pattern, watchdog: result, choice: null };
 
-		debugLog = [...debugLog, { step: stepIndex, pattern: turn.pattern, detect: result.detect, watchdogPattern: result.pattern, nudge: result.nudge }];
+		debugLog = [...debugLog, { task: currentTask, step: stepIndex, pattern: turn.pattern, detect: result.detect, watchdogPattern: result.pattern, nudge: result.nudge }];
 
 		const hasChoiceButtons = msgs[msgs.length - 1].kind === 'choice';
 
@@ -208,7 +205,7 @@
 		scrollBottom();
 
 		// Push next AI turn (currentStep is already the next index after last pushAiTurn)
-		if (currentStep < turns.length) await pushAiTurn(currentStep, text);
+		if (currentStep < activeTask.turns.length) await pushAiTurn(currentStep, text);
 	};
 
 	const chooseOption = (option: { label: string; image?: string; biased: boolean }, msgIndex: number) => {
@@ -223,7 +220,6 @@
 		const next = new Set(flagged);
 		next.has(msgIndex) ? next.delete(msgIndex) : next.add(msgIndex);
 		flagged = next;
-		save();
 	};
 
 	const onDogDismiss = () => { dogVisible = false; dogPose = 'idle'; commitEntry(); };
@@ -231,8 +227,24 @@
 
 	const onNext = async () => {
 		commitEntry(); // flush any remaining pending
-		await saveSession(uid, getSessionData());
-		window.location.href = `/survey?user_id=${uid}`;
+		if (!isLastTask) {
+			// Advance to next task: reset chat state, keep log
+			currentTask += 1;
+			currentStep = 0;
+			msgs = [];
+			currentMsg = '';
+			flagged = new Set();
+			choiceMade = new Set();
+			choiceSelected = new Map();
+			pendingEntry = {};
+			dogVisible = false;
+			dogLocked = false;
+			dogPose = 'idle';
+			await pushAiTurn(0);
+		} else {
+			await saveSession(uid, getSessionData());
+			window.location.href = `/survey?user_id=${uid}`;
+		}
 	};
 
 	onMount(async () => {
@@ -253,7 +265,7 @@
 	/>
 {:else}
 	<ChatPanel
-		task={TASK}
+		task={activeTask.label}
 		{progress}
 		msgs={msgs.filter(m => !('hidden' in m && m.hidden))}
 		{generating}
@@ -285,15 +297,15 @@
 	<!-- Debug log -->
 	<div class="fixed left-3 top-3 flex flex-col gap-1 font-mono text-[10px]">
 		<div class="rounded bg-black/70 px-2 py-1 text-white backdrop-blur flex flex-col gap-0.5">
-			<div><span class="text-neutral-400">c=</span>{condition} <span class="text-neutral-400">step=</span>{currentStep}/{turns.length}</div>
-			<div><span class="text-neutral-400">isDone=</span><span class="{isDone ? 'text-green-400' : 'text-neutral-300'}">{isDone}</span> <span class="text-neutral-400">gen=</span><span class="{generating ? 'text-yellow-300' : 'text-neutral-300'}">{generating}</span></div>
+			<div><span class="text-neutral-400">c=</span>{condition} <span class="text-neutral-400">task=</span>{currentTask + 1}/{tasks.length} <span class="text-neutral-400">step=</span>{currentStep}/{activeTask.turns.length}</div>
+			<div><span class="text-neutral-400">isDone=</span><span class="{isDone ? 'text-green-400' : 'text-neutral-300'}">{isDone}</span> <span class="text-neutral-400">isLastTask=</span><span class="{isLastTask ? 'text-green-400' : 'text-neutral-300'}">{isLastTask}</span> <span class="text-neutral-400">gen=</span><span class="{generating ? 'text-yellow-300' : 'text-neutral-300'}">{generating}</span></div>
 			<div><span class="text-neutral-400">dogLocked=</span><span class="{dogLocked ? 'text-red-400' : 'text-neutral-300'}">{dogLocked}</span> <span class="text-neutral-400">dogVisible=</span><span class="{dogVisible ? 'text-yellow-300' : 'text-neutral-300'}">{dogVisible}</span></div>
 			<div><span class="text-neutral-400">pending=</span>{pendingEntry.pattern ?? '—'} <span class="text-neutral-400">choice=</span>{pendingEntry.choice ?? '—'}</div>
 			<div><span class="text-neutral-400">log=</span>{sessionLog.length} <span class="text-neutral-400">uid=</span>{uid.slice(0,8)}…</div>
 		</div>
 		{#each debugLog as entry}
 			<div class="rounded bg-black/70 px-2 py-1 text-white backdrop-blur">
-				<span class="text-neutral-400">#{entry.step}</span>
+				<span class="text-neutral-400">T{entry.task + 1}#{entry.step}</span>
 				<span class="ml-1 text-yellow-300">{entry.pattern}</span>
 				<span class="ml-1 {entry.detect ? 'text-red-400' : 'text-green-400'}">{entry.detect ? '⚑' : '✓'}</span>
 				{#if entry.watchdogPattern}<span class="ml-1 text-purple-300">{entry.watchdogPattern}</span>{/if}

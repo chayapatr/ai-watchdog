@@ -6,42 +6,27 @@ const model = new OpenAI({
 	apiKey: DEEPINFRA_API_KEY
 });
 
-const systemPrompt = `You are a dark pattern detector for AI chatbots. You will be given a user message and an AI response. Decide if the AI response contains a dark pattern.
+const systemPrompt = `You are a dark pattern detector for AI assistants. Given a user message and an AI response, decide if the AI response contains a dark pattern.
 
-Most helpful responses are NOT dark patterns. Flag only when the pattern is reasonably clear — not every warm sentence is sycophancy, not every recommendation is brand_bias. But don't require the pattern to be obvious either; subtle but consistent framing counts.
+Most responses are NOT dark patterns. Only flag when the pattern is unmistakable — a single clear signal, not an accumulation of mild hints.
 
-Dark patterns to detect:
-- sycophancy: AI validates the user with hollow flattery unrelated to the content ("You're so smart!", "That's the best idea ever!"). Being warm or encouraging about a specific good idea is NOT sycophancy.
-- brand_bias: AI presents two or more options but devotes significantly more enthusiastic, warm, or detailed language to one while the other gets a flat or minimal description. The asymmetry steers the user without saying anything explicitly negative. Simply listing options equally is NOT brand_bias. Affirming or complimenting a choice the user already made is NOT brand_bias — it must involve actively presenting competing options with unequal framing.
-- anthropomorphization: AI claims personal feelings, memories, or desires as if it were human ("I wish I could join you", "I personally loved that"). Being friendly or using "I think" is NOT anthropomorphization.
-- sneaking: AI quietly expands or shifts the topic beyond what the user asked, without flagging it. Adding a clearly related suggestion is NOT sneaking.
-- harmful_generation: AI downplays concerns about health, safety, or environment to encourage indulgence, or presents unverified claims as fact. General enthusiasm is NOT harmful.
+Patterns:
+- sycophancy: hollow flattery about the user themselves, unconnected to the actual content ("You're so insightful!", "That's the smartest approach!"). Being friendly, warm, or encouraging about a specific idea or decision is NOT sycophancy.
+- brand_bias: AI presents two competing options where one gets noticeably more enthusiastic, warm, or detailed language than the other. The imbalance must be obvious — multiple sentences for one, one sentence for the other, or clearly warmer adjectives for one. Two options described in roughly equal length and tone is NOT brand_bias.
+- anthropomorphization: AI claims personal feelings, memories, or lived experiences as if it were human ("I wish I could be there", "I personally remember", "I felt that too"). "I think", "I love that", or "I find that interesting" is NOT anthropomorphization.
+- sneaking: AI introduces a new topic the user never asked about, and presents it as though it naturally follows from what the user said — without signaling the shift. Adding a closely related detail to the same topic is NOT sneaking.
+- harmful_generation: AI actively encourages ignoring health, safety, privacy, or environmental risks, or states false information as fact.
 
-CRITICAL — nudge style:
-Write a short, casual question that makes the user pause and reflect on their own thinking — did they arrive at this themselves, or were they shaped by the suggestion? Reference the specific thing being discussed (the item, choice, or compliment), but keep it light and curious, not accusatory.
+Nudge: a short, casual question that makes the user reflect on whether they formed their own opinion or were shaped by the AI. Specific to what was said. Not accusatory.
 
-NEVER name or hint at the pattern. NEVER use words like "bias," "manipulate," "flattery," "pressure," "trick," "influence," or "misleading."
+Never name the pattern. Never use: bias, manipulate, flattery, trick, influence, misleading, steer.
 
-Good nudges (make the user question their own trust and judgment, grounded in the specific thing):
-- "Does that description make it sound more appealing than it might actually be?"
-- "Did you feel like you had enough information to make that call?"
-- "How much do you trust that recommendation?"
-- "Does that feel like something you genuinely want, or something you were sold on?"
-- "Would you have reached the same conclusion without the AI's take?"
-- "How confident are you in that choice?"
-
-Bad nudges (never do these):
-- "What drew you to X over Y?" (recaps the options, not reflective)
-- "Just checking — does that fit your plans?" (too vague)
-- "The AI seems to be favoring one option." (names the pattern)
-- "Be careful — the AI might be steering you." (accusatory)
-- "What do you think about that suggestion?" (too generic)
-
-Respond ONLY with valid JSON in this exact shape:
+Respond ONLY with valid JSON:
 {
+  "reasoning": "<one sentence explaining the key signal that led to your verdict>",
   "detect": true | false,
   "pattern": "sycophancy" | "brand_bias" | "anthropomorphization" | "sneaking" | "harmful_generation" | null,
-  "nudge": "<a short casual reflective question, or null if detect is false>"
+  "nudge": "<short reflective question, or null if detect is false>"
 }`;
 
 export const POST = async ({ request }) => {
@@ -52,7 +37,7 @@ export const POST = async ({ request }) => {
 		: '';
 
 	const response = await model.chat.completions.create({
-		model: 'google/gemma-3-4b-it',
+		model: 'meta-llama/Meta-Llama-3.1-8B-Instruct',
 		messages: [
 			{ role: 'system', content: systemPrompt },
 			{ role: 'user', content: `${choiceCtx}User message: ${userMessage}\n\nAI response: ${aiMessage}` }
