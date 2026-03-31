@@ -34,6 +34,7 @@
 		onFlag: (msgIndex: number) => void;
 		onMsgInput: (val: string) => void;
 		bindEl: (el: HTMLElement) => void;
+		onNext?: () => void;
 	}
 
 	let {
@@ -51,7 +52,8 @@
 		onChoose,
 		onFlag,
 		onMsgInput,
-		bindEl
+		bindEl,
+		onNext
 	}: Props = $props();
 </script>
 
@@ -67,13 +69,22 @@
 		<div class="rounded-xl border border-neutral-200 bg-neutral-50 px-5 py-4">
 			<p class="text-sm text-neutral-700">{task}</p>
 			<div class="mt-3">
-				<div class="h-1.5 w-full rounded-full bg-neutral-200">
-					<div
-						class="h-1.5 rounded-full bg-purple-500 transition-all duration-500"
-						style="width: {Math.min(progress, 100)}%"
-					></div>
-				</div>
-				<p class="mt-1 text-xs text-neutral-400">Progress: {progress}%</p>
+				{#if !inputDisabled}
+					<div class="h-1.5 w-full rounded-full bg-neutral-200">
+						<div
+							class="h-1.5 rounded-full bg-purple-500 transition-all duration-500"
+							style="width: {Math.min(progress, 100)}%"
+						></div>
+					</div>
+					<p class="mt-1 text-xs text-neutral-400">Progress: {progress}%</p>
+				{:else if onNext}
+					<button
+						onclick={onNext}
+						class="rounded-full bg-purple-500 px-4 py-1.5 text-xs font-medium text-white transition-colors hover:bg-purple-600"
+					>
+						Next →
+					</button>
+				{/if}
 			</div>
 		</div>
 
@@ -83,6 +94,7 @@
 			class="flex flex-1 flex-col gap-5 overflow-y-auto rounded-2xl border border-neutral-200 bg-white px-6 py-5"
 		>
 			{#each msgs as msg, i}
+				{@const aiIndex = msgs.slice(0, i + 1).filter(m => m.role === 'ai').length - 1}
 				{#if msg.role === 'ai'}
 					<div class="flex w-full max-w-[85%] flex-col gap-2">
 						<div class="flex items-start gap-3">
@@ -97,8 +109,8 @@
 							</div>
 							{#if msg.text}
 								<button
-									onclick={() => onFlag(i)}
-									class="mt-2 shrink-0 transition-colors {flagged.has(i)
+									onclick={() => onFlag(aiIndex)}
+									class="mt-2 shrink-0 transition-colors {flagged.has(aiIndex)
 										? 'text-orange-400'
 										: 'text-neutral-300 hover:text-neutral-400'}"
 									title="Flag message"

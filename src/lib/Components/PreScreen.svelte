@@ -84,8 +84,8 @@
 						rachelpo@mit.edu or pub@mit.edu.
 					</p>
 					<p>
-						As a research participant in this study, you consent to the use of your data for this
-						study. If you do not consent, please leave the study.
+						As a research participant in this study, you consent to the use of your data for
+						research purposes. Participation is voluntary, you're welcome to stop at any time.
 					</p>
 				</div>
 			</div>
@@ -100,7 +100,7 @@
 					/>
 					I consent
 				</label>
-				<label class="flex cursor-pointer items-center gap-2 text-sm text-neutral-700">
+				<!-- <label class="flex cursor-pointer items-center gap-2 text-sm text-neutral-700">
 					<input
 						type="radio"
 						name="consent"
@@ -109,7 +109,7 @@
 						class="accent-purple-500"
 					/>
 					I do not consent
-				</label>
+				</label> -->
 			</div>
 			<button
 				onclick={proceedConsent}
