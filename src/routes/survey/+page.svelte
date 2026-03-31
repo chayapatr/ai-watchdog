@@ -24,7 +24,7 @@
 		<input
 			bind:value={input}
 			type="password"
-			placeholder="Enter completion code..."
+			placeholder="Enter password..."
 			class="flex-1 rounded-full border px-4 py-2 text-sm text-neutral-800 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-purple-300 {wrong
 				? 'border-red-400'
 				: 'border-neutral-200'}"
