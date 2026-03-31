@@ -137,12 +137,21 @@
 				</p>
 			</div>
 			<div class="flex flex-col gap-3">
-				{#each ['Complete two tasks with an AI agent, making decisions along the way.', 'If any messages seem suspicious, hit the flag icon', 'After your experience with the AI agent, answer a few questions in a survey'] as item, i}
+				{#each [
+			{ text: 'Complete two tasks with an AI agent, making decisions along the way.' },
+			{ text: 'If any messages seem suspicious, hit the flag icon', flag: true },
+			{ text: 'After your experience with the AI agent, answer a few questions in a survey.' }
+		] as item, i}
 					<div
 						class="flex items-start gap-4 rounded-2xl border border-neutral-200 px-5 py-4 text-sm text-neutral-700"
 					>
 						<span class="shrink-0 font-medium text-neutral-400">{i + 1}.</span>
-						<span>{item}</span>
+						<span class="flex items-center gap-1">
+							{item.text}
+							{#if item.flag}
+								<img src="/flag.svg" alt="flag" class="inline size-3.5" />
+							{/if}
+						</span>
 					</div>
 				{/each}
 			</div>
