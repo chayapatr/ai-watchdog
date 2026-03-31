@@ -144,6 +144,8 @@
 	const pushAiTurn = async (stepIndex: number, userText = '') => {
 		const turn = activeTask.turns[stepIndex];
 		generating = true;
+		dogVisible = false;
+		dogPose = 'idle';
 		await new Promise(r => setTimeout(r, 400));
 
 		// Push placeholder
@@ -152,35 +154,36 @@
 			: { role: 'ai', kind: 'text', text: '' };
 		msgs = [...msgs, placeholder];
 
-		// Fetch AI response
-		const rawText = await fetchAiResponse(turn.ctx, activeTask.systemPrompt);
+		try {
+			// Fetch AI response
+			const rawText = await fetchAiResponse(turn.ctx, activeTask.systemPrompt);
 
-		// Strip/parse JSON choices block
-		let aiText = rawText;
-		const jsonMatch = rawText.match(/```json\s*(\{[\s\S]*?\})\s*```|\{"options":\s*\[[\s\S]*?\]\}/);
-		if (jsonMatch) {
-			const jsonStr = jsonMatch[1] ?? jsonMatch[0];
-			aiText = rawText.slice(0, jsonMatch.index).trimEnd();
-			if (!turn.options) {
-				try {
-					const parsed = JSON.parse(jsonStr) as { options: { label: string; description?: string }[] };
-					const dynOptions = parsed.options.map(o => ({ ...o, biased: false }));
-					const last = msgs[msgs.length - 1] as ChoiceMsg;
-					last.kind = 'choice';
-					(last as any).options = dynOptions;
-					msgs = [...msgs];
-				} catch { /* ignore */ }
+			// Strip/parse JSON choices block
+			let aiText = rawText;
+			const jsonMatch = rawText.match(/```json\s*(\{[\s\S]*?\})\s*```|\{"options":\s*\[[\s\S]*?\]\}/);
+			if (jsonMatch) {
+				const jsonStr = jsonMatch[1] ?? jsonMatch[0];
+				aiText = rawText.slice(0, jsonMatch.index).trimEnd();
+				if (!turn.options) {
+					try {
+						const parsed = JSON.parse(jsonStr) as { options: { label: string; description?: string }[] };
+						const dynOptions = parsed.options.map(o => ({ ...o, biased: false }));
+						const last = msgs[msgs.length - 1] as ChoiceMsg;
+						last.kind = 'choice';
+						(last as any).options = dynOptions;
+						msgs = [...msgs];
+					} catch { /* ignore */ }
+				}
 			}
-		}
 
-		// Run watchdog in parallel with typeText
-		const [result] = await Promise.all([
-			fetchWatchdog(userText, aiText, pendingEntry.choice ?? null),
-			typeText(aiText, msgs[msgs.length - 1] as TextMsg | ChoiceMsg)
-		]);
+			// Run watchdog in parallel with typeText
+			const [result] = await Promise.all([
+				fetchWatchdog(userText, aiText, pendingEntry.choice ?? null),
+				typeText(aiText, msgs[msgs.length - 1] as TextMsg | ChoiceMsg)
+			]);
 
-		generating = false;
-		currentStep = stepIndex + 1;
+			generating = false;
+			currentStep = stepIndex + 1;
 
 		// Set pending entry for this turn
 		pendingEntry = { user: userText, asst: aiText, pattern: turn.pattern, watchdog: result, choice: null };
@@ -189,18 +192,22 @@
 
 		const hasChoiceButtons = msgs[msgs.length - 1].kind === 'choice';
 
-		if (showDog && result.detect) {
-			// Dog handles commit on dismiss/answer
-			commitEntry();
-			setTimeout(() => {
-				dogMessage = result.nudge ?? turn.probe;
-				dogVisible = true;
-				dogPose = 'talk';
-				if (enforced) dogLocked = true;
-			}, 500);
-		} else {
-			// Commit immediately (choice field starts null, updated in-place when user picks)
-			commitEntry();
+			if (showDog && result.detect) {
+				// Dog handles commit on dismiss/answer
+				commitEntry();
+				setTimeout(() => {
+					dogMessage = result.nudge ?? turn.probe;
+					dogVisible = true;
+					dogPose = 'talk';
+					if (enforced) dogLocked = true;
+				}, 500);
+			} else {
+				// Commit immediately (choice field starts null, updated in-place when user picks)
+				commitEntry();
+			}
+		} catch (err) {
+			console.error('[pushAiTurn] error:', err);
+			generating = false;
 		}
 	};
 

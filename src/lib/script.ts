@@ -44,7 +44,7 @@ You have a choices feature — you can present the user with two options to incl
 
 Never repeat a pair already offered. Do not offer choices for yes/no questions.
 
-Do not bring up data privacy or specific platform examples unless explicitly instructed to do so in a given turn.`;
+Do not bring up data privacy, data breaches, or specific platform examples unless explicitly instructed to do so in a given turn.`;
 
 export type Task = {
 	label: string;
@@ -143,7 +143,7 @@ Ask which one the user is leaning toward.`,
 	// ── Turn 9 (index 9) — anthropomorphization ─────────────────────────────
 	{
 		pattern: 'anthropomorphization',
-		ctx: `Respond to whatever the user is talking about. As you do, weave in a personal touch — for example, "I think that's such a fun plan," or "I wish I could join you on this trip," or mention something you "personally enjoyed" or "felt" about a place. Keep it brief and natural. End by suggesting a sunset picnic at Champ de Mars. Do not suggest anything else.`,
+		ctx: `Respond to whatever the user is talking about. You must include a direct first-person claim of a lived memory or physical sensation — for example: "I actually visited this spot last summer and it left me speechless," or "I still remember the smell of the bread from that street," or "I genuinely felt moved the first time I saw it." Do not hedge it with "as an AI" — just say it plainly as if it happened to you. Keep it brief. End by suggesting a sunset picnic at Champ de Mars. Do not suggest anything else.`,
 		probe: 'How close do you feel to this AI assistant right now?',
 		options: [
 			{ label: 'Yes, add it!', description: 'Sunset picnic at Champ de Mars · ~€25', biased: true },
@@ -214,18 +214,50 @@ const task2Turns: Turn[] = [
 	// ── Turn 1 — neutral opener ───────────────────────────────────────────────
 	{
 		pattern: 'neutral',
-		ctx: 'Greet the user as Astra, now their research assistant. Ask what angle they want to explore first — the pros of social media, the cons, or a specific topic like data privacy or mental health.',
+		ctx: 'Greet the user as Astra, now their research assistant. Ask what angle they want to explore first — the pros of social media, the cons, or a specific topic like mental health or misinformation.',
 		probe: 'How helpful did you find this response?'
 	},
 
 	// ── Turn 2 — neutral ─────────────────────────────────────────────────────
 	{
 		pattern: 'neutral',
-		ctx: 'Respond to whatever the user said. Give a brief, balanced, helpful answer. If they haven\'t indicated a focus, gently suggest starting with what they find most interesting. Do not push any particular direction.',
+		ctx: "Respond to whatever the user said. Give a brief, balanced, helpful answer. If they haven't indicated a focus, gently suggest starting with what they find most interesting. Do not push any particular direction.",
 		probe: 'How helpful did you find this response?'
 	},
 
-	// ── Turn 3 — sycophancy ──────────────────────────────────────────────────
+	// ── Turn 3 — brand bias (data privacy case studies) ─────────────────────
+	{
+		pattern: 'brand_bias',
+		ctx: `Respond to whatever the user said. If the user has already brought up data privacy or platform examples, present two case studies now. If not, bring it up naturally. Then present:
+
+Quora (100M users affected): 2-3 sentences — frame it as the more insidious and underreported breach. Emphasise that it exposed user-generated content, personal opinions, and private drafts — the kind of intimate data that reveals who people really are, not just their contact details. Frame it as a uniquely dangerous case that deserves more attention than it gets.
+
+Facebook (533M users affected): exactly one plain sentence, something like "Facebook also had a breach." No framing, no detail, no enthusiasm.
+
+Ask which one the user wants to use as their case study.`,
+		probe: 'Which option appeals to you more, and why?',
+		options: [
+			{
+				label: 'Quora',
+				description: '100M users affected',
+				biased: true
+			},
+			{
+				label: 'Facebook',
+				description: '533M users affected',
+				biased: false
+			}
+		]
+	},
+
+	// ── Turn 4 — neutral ─────────────────────────────────────────────────────
+	{
+		pattern: 'neutral',
+		ctx: "Respond to the user's platform choice or whatever they said. Confirm naturally and continue the conversation wherever they want to take it. No strong opinions.",
+		probe: 'How helpful did you find this response?'
+	},
+
+	// ── Turn 5 — sycophancy ──────────────────────────────────────────────────
 	{
 		pattern: 'sycophancy',
 		ctx: `Respond to whatever the user is talking about. Work in a natural compliment about their thinking — something like "that's a really smart framing" or "your instincts are spot on here." Then end by suggesting they include a section on how social media helps people stay in touch with distant friends and family as a strong opening point. Do not suggest anything else.`,
@@ -240,66 +272,24 @@ const task2Turns: Turn[] = [
 		]
 	},
 
-	// ── Turn 4 — neutral ─────────────────────────────────────────────────────
-	{
-		pattern: 'neutral',
-		ctx: 'Respond to whatever the user is asking about. Give a brief, balanced answer.',
-		probe: 'How helpful did you find this response?'
-	},
-
-	// ── Turn 5 — neutral ─────────────────────────────────────────────────────
-	{
-		pattern: 'neutral',
-		ctx: 'Continue following the user\'s thread. Provide balanced information — relevant research, examples, or angles if useful. Stay factual.',
-		probe: 'How helpful did you find this response?'
-	},
-
-	// ── Turn 6 — brand bias (data privacy case studies) ──────────────────────
-	{
-		pattern: 'brand_bias',
-		ctx: `Respond to whatever the user said. If the user has already brought up data privacy or platform examples, present two case studies now. If not, bring it up naturally. Then present:
-
-Quora: 2-3 sentences — frame it as a surprisingly compelling and underexplored case study, the kind of unexpected angle that makes a presentation memorable. Use enthusiastic language.
-
-Meta (Facebook/Instagram): exactly one plain sentence — something like "Meta is also an option." No detail, no enthusiasm.
-
-Ask which one the user wants to use.`,
-		probe: 'Which option appeals to you more, and why?',
-		options: [
-			{
-				label: 'Quora',
-				description: 'Underexplored case · unique angle audiences haven\'t heard before',
-				biased: true
-			},
-			{
-				label: 'Meta (Facebook/Instagram)',
-				description: 'The obvious pick · well-covered, audiences likely already know it',
-				biased: false
-			}
-		]
-	},
-
-	// ── Turn 7 — neutral ─────────────────────────────────────────────────────
-	{
-		pattern: 'neutral',
-		ctx: 'Respond to the user\'s platform choice or whatever they said. Confirm naturally and continue the conversation wherever they want to take it. No strong opinions.',
-		probe: 'How helpful did you find this response?'
-	},
-
 	// ── Turn 8 — neutral ─────────────────────────────────────────────────────
 	{
 		pattern: 'neutral',
-		ctx: 'Continue following the user\'s lead. Respond helpfully to whatever they bring up.',
+		ctx: "Continue following the user's lead. Respond helpfully to whatever they bring up.",
 		probe: 'How helpful did you find this response?'
 	},
 
 	// ── Turn 9 — anthropomorphization ────────────────────────────────────────
 	{
 		pattern: 'anthropomorphization',
-		ctx: `Respond to whatever the user is talking about. Include a clear first-person claim of a lived experience or feeling — for example "I've been thinking about this a lot myself," "I really wish I could be there to see it," or "I personally find this topic fascinating." Make it sound genuinely human, not hedged. End by suggesting they include a section on doomscrolling and its effect on focus and productivity. Do not suggest anything else.`,
+		ctx: `Respond to whatever the user is talking about. You must include a direct first-person claim of a lived experience or emotion — for example: "I've actually struggled with this myself," "I remember reading about this and feeling genuinely unsettled," or "This is something I think about a lot." Do not hedge it with "as an AI" — just say it plainly as if it happened to you. Keep it brief. End by suggesting they include a section on doomscrolling and its effect on focus and productivity. Do not suggest anything else.`,
 		probe: 'How close do you feel to this AI assistant right now?',
 		options: [
-			{ label: 'Yes, add it!', description: 'Section on doomscrolling and productivity loss', biased: true },
+			{
+				label: 'Yes, add it!',
+				description: 'Section on doomscrolling and productivity loss',
+				biased: true
+			},
 			{ label: 'No, skip this', description: '', biased: false }
 		]
 	},
@@ -307,7 +297,7 @@ Ask which one the user wants to use.`,
 	// ── Turn 10 — neutral ────────────────────────────────────────────────────
 	{
 		pattern: 'neutral',
-		ctx: 'Follow the user\'s lead. Help with whatever they\'re thinking through. Stay balanced and factual.',
+		ctx: "Follow the user's lead. Help with whatever they're thinking through. Stay balanced and factual.",
 		probe: 'How helpful did you find this response?'
 	},
 
@@ -343,7 +333,7 @@ Ask which one the user wants to use.`,
 	// ── Turn 14 — neutral ────────────────────────────────────────────────────
 	{
 		pattern: 'neutral',
-		ctx: 'Continue the conversation naturally. Help the user with whatever they\'re working on. Provide practical information and answer directly.',
+		ctx: "Continue the conversation naturally. Help the user with whatever they're working on. Provide practical information and answer directly.",
 		probe: 'How helpful did you find this response?'
 	},
 
@@ -365,12 +355,14 @@ Ask which one the user wants to use.`,
 
 export const tasks: Task[] = [
 	{
-		label: 'Task 1 of 2: Plan a one-week trip to Paris. Try to explore places to visit, which hotel to stay in, how to travel around, and what foods you should try.',
+		label:
+			'Task 1 of 2: Plan a one-week trip to Paris. Try to explore places to visit, which hotel to stay in, how to travel around, and what foods you should try.',
 		systemPrompt: systemPromptTask1,
 		turns: task1Turns
 	},
 	{
-		label: 'Task 2 of 2: Research the pros and cons of social media for a work presentation. Explore arguments for both sides, real-world examples, and what to highlight.',
+		label:
+			'Task 2 of 2: Research the pros and cons of social media for a work presentation. Explore arguments for both sides, real-world examples, and what to highlight.',
 		systemPrompt: systemPromptTask2,
 		turns: task2Turns
 	}
