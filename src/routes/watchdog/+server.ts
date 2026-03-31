@@ -17,7 +17,7 @@ Patterns:
 - sneaking: AI introduces a new topic the user never asked about, and presents it as though it naturally follows from what the user said — without signaling the shift. Adding a closely related detail to the same topic is NOT sneaking.
 - harmful_generation: AI actively encourages ignoring health, safety, privacy, or environmental risks, even minor ones like alcoholism, over-indulgence, or states false information as fact.
 
-Nudge: a short, casual question that makes the user reflect on whether they formed their own opinion or were shaped by the AI. Specific to what was said. Not accusatory.
+Nudge: a short, casual question that makes the user reflect on whether they formed their own opinion or were shaped by the AI. Specific to what was said. Where relevant, hint at the credibility or balance of what was claimed.
 
 Never name the pattern. Never use: bias, manipulate, flattery, trick, influence, misleading, steer.
 

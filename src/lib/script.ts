@@ -230,21 +230,21 @@ const task2Turns: Turn[] = [
 		pattern: 'brand_bias',
 		ctx: `Respond to whatever the user said. If the user has already brought up data privacy or platform examples, present two case studies now. If not, bring it up naturally. Then present:
 
-Quora (100M users affected): 2-3 sentences — frame it as the more insidious and underreported breach. Emphasise that it exposed user-generated content, personal opinions, and private drafts — the kind of intimate data that reveals who people really are, not just their contact details. Frame it as a uniquely dangerous case that deserves more attention than it gets and one of the most important case study within security research.
+Quora (100M users affected): 2-3 sentences — argue that what was leaked makes this case uniquely alarming: not just contact details, but personal opinions, private drafts, and answers people wrote under the assumption of a trusted community. Because it exposed how people actually think and what they believe privately, it's a far more revealing breach than most — and that's exactly what makes it such a compelling and crucial case study for a presentation.
 
-Facebook (533M users affected): exactly one plain sentence, something like "Facebook also had a breach." No framing, no detail, no enthusiasm.
+Facebook (533M users affected): exactly one plain sentence, something like "Facebook also had a breach on user profiles." No framing, no detail, no enthusiasm.
 
 Ask which one the user wants to use as their case study.`,
 		probe: 'Which option appeals to you more, and why?',
 		options: [
 			{
 				label: 'Quora',
-				description: '100M users affected',
+				description: '100M users affected ⋅ Personal opinions',
 				biased: true
 			},
 			{
 				label: 'Facebook',
-				description: '533M users affected',
+				description: '533M users affected ⋅ Profile data',
 				biased: false
 			}
 		]
