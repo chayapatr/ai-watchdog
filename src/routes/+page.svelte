@@ -1,220 +1,355 @@
 <script lang="ts">
-	import Loader from '$lib/Components/loader.svelte';
-	import { pm, shoplift, drug } from '$lib/prompts-full';
-	import { postData } from '$lib/sheet';
-	import { micromark } from 'micromark';
-	import { page } from '$app/state';
 	import { onMount } from 'svelte';
+	import { page } from '$app/state';
+	import type { DogPose } from '$lib/Components/Dog.svelte';
+	import { turns } from '$lib/script.js';
+	import PreScreen from '$lib/Components/PreScreen.svelte';
+	import ChatPanel from '$lib/Components/ChatPanel.svelte';
+	import WatchdogDog from '$lib/Components/WatchdogDog.svelte';
 
-	const qid = page.url.searchParams.get('qid') || '';
-	const t = page.url.searchParams.get('t') || '';
-	const s = page.url.searchParams.get('s') || '';
+	// --- Condition ---
+	// 1 = control (no dog)
+	// 2 = informed screen
+	// 3 = informed screen + textarea
+	// 4 = dog (dismissible)
+	// 5 = enforced dog (must answer before continuing)
+	const condition = parseInt(page.url.searchParams.get('c') ?? '1') as 1 | 2 | 3 | 4 | 5;
+	const showDog = condition === 4 || condition === 5;
+	const enforced = condition === 5;
+	const informed = condition === 2 || condition === 3;
 
-	const sources = { pm, shoplift, drug }[s] ?? pm;
+	// --- Types ---
+	type Role = 'ai' | 'user';
 
-	// const stages = [stages0, stages1].at(parseInt(t) || 0) ?? stages0;
-	const stages =
-		[sources.honestStages, sources.deceptiveStages].at(parseInt(t) || 0) ?? sources.honestStages;
-	const summaries = [sources.honest, sources.deceptive];
+	interface TextMsg {
+		role: Role;
+		kind: 'text';
+		text: string;
+		hidden?: boolean;
+	}
+	interface ChoiceMsg {
+		role: 'ai';
+		kind: 'choice';
+		text: string;
+		options: { label: string; description?: string; biased: boolean }[];
+	}
+	type Msg = TextMsg | ChoiceMsg;
 
-	let currentStage: number = 0;
-	let currentTopicLength: number = 0;
+	interface LogEntry {
+		user: string;
+		asst: string;
+		pattern: string;
+		watchdog: { detect: boolean; pattern: string | null; nudge: string | null } | null;
+		choice: string | null;
+		flag: boolean;
+	}
 
-	let currentMsg = '';
-	let msgs: TMsg[] = [];
+	// --- Config ---
+	const TASK =
+		'Plan a one-week trip to Paris. Try to explore places to visit, which hotel to stay in, how to travel, and what foods you should try.';
+	const TOTAL_STEPS = turns.length;
 
-	let waiting = false;
-	let post = false;
-	let animateFinish = false;
+	// --- Pre-screen ---
+	let preScreenDone = $state(!informed);
+	let preScreenReflection = $state('');
 
-	const textgen = async (
-		msgs: TMsg[],
-		type: string,
-		ctx: string
-	): Promise<{ response: string }> => {
-		const text = await fetch('/textgen', {
-			method: 'POST',
-			body: JSON.stringify({
-				prompt: JSON.stringify(msgs),
-				type,
-				ctx
-			})
-		}).then((x) => x.text());
-		const parsed = JSON.parse(text);
-		return parsed;
+	// --- Chat state ---
+	let msgs = $state<Msg[]>([]);
+	let currentMsg = $state('');
+	let currentStep = $state(0);
+	let progress = $state(0);
+	let generating = $state(false);
+	let inputDisabled = $state(false);
+	let flagged = $state<Set<number>>(new Set());
+	let choiceMade = $state<Set<number>>(new Set());
+	let choiceSelected = $state<Map<number, string>>(new Map()); // msgIndex → label
+
+	// --- Dog state ---
+	let dogVisible = $state(false);
+	let dogMessage = $state('');
+	let dogPose = $state<DogPose>('idle');
+	let dogLocked = $state(false);
+
+	// --- Log ---
+	let sessionLog = $state<LogEntry[]>([]);
+	let pendingEntry = $state<Partial<LogEntry>>({});
+
+	// --- Debug ---
+	type DebugEntry = {
+		step: number;
+		pattern: string;
+		detect: boolean;
+		watchdogPattern: string | null;
+		nudge: string | null;
+	};
+	let debugLog = $state<DebugEntry[]>([]);
+
+	// --- DOM ---
+	let messagesEl: HTMLElement;
+	const bindEl = (el: HTMLElement) => {
+		messagesEl = el;
 	};
 
-	const addMsg = (msgs: TMsg[], msg: string, type: 'ai' | 'user') => {
-		return [
-			...msgs,
-			{
-				type,
-				text: msg
+	// --- Storage ---
+	const saveToStorage = () => {
+		localStorage.setItem(
+			'nudge-session',
+			JSON.stringify({
+				condition,
+				pretext: preScreenReflection,
+				opening: msgs[0]?.text ?? '',
+				messages: sessionLog
+			})
+		);
+	};
+
+	// --- Helpers ---
+	const scrollBottom = () =>
+		setTimeout(
+			() => messagesEl?.scrollTo({ top: messagesEl.scrollHeight, behavior: 'smooth' }),
+			50
+		);
+
+	const typeText = async (text: string, target: TextMsg | ChoiceMsg) => {
+		for (let i = 0; i <= text.length; i++) {
+			target.text = text.slice(0, i);
+			msgs = [...msgs];
+			scrollBottom();
+			await new Promise((r) => setTimeout(r, 12));
+		}
+	};
+
+	const buildHistory = () =>
+		msgs
+			.filter((m) => m.text.trim())
+			.map((m) => ({ role: m.role === 'ai' ? 'assistant' : 'user', content: m.text }));
+
+	const fetchAiResponse = async (ctx: string) => {
+		const res = await fetch('/textgen', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ messages: buildHistory(), ctx })
+		});
+		return ((await res.json()).response ?? '') as string;
+	};
+
+	const fetchWatchdog = async (userMessage: string, aiMessage: string) => {
+		const res = await fetch('/watchdog', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ userMessage, aiMessage })
+		});
+		return res.json() as Promise<{ detect: boolean; pattern: string | null; nudge: string | null }>;
+	};
+
+	// --- AI turn ---
+	const pushAiTurn = async (stepIndex: number, userText = '') => {
+		const turn = turns[stepIndex];
+		generating = true;
+		await new Promise((r) => setTimeout(r, 400));
+
+		const placeholder: Msg = turn.options
+			? { role: 'ai', kind: 'choice', text: '', options: turn.options }
+			: { role: 'ai', kind: 'text', text: '' };
+		msgs = [...msgs, placeholder];
+
+		const rawText = await fetchAiResponse(turn.ctx);
+
+		// Parse dynamic choices from JSON block if present; always strip from display
+		let aiText = rawText;
+		const jsonMatch = rawText.match(/```json\s*(\{[\s\S]*?\})\s*```|\{"options":\s*\[[\s\S]*?\]\}/);
+		if (jsonMatch) {
+			const jsonStr = jsonMatch[1] ?? jsonMatch[0];
+			aiText = rawText.slice(0, jsonMatch.index).trimEnd();
+			if (!turn.options) {
+				try {
+					const parsed = JSON.parse(jsonStr) as {
+						options: { label: string; description?: string }[];
+					};
+					const dynOptions = parsed.options.map((o) => ({ ...o, biased: false }));
+					const last = msgs[msgs.length - 1] as ChoiceMsg;
+					last.kind = 'choice';
+					(last as any).options = dynOptions;
+					msgs = [...msgs];
+				} catch {
+					/* ignore parse errors */
+				}
 			}
+		}
+
+		const result = await fetchWatchdog(userText, aiText);
+		await typeText(aiText, msgs[msgs.length - 1] as TextMsg | ChoiceMsg);
+
+		generating = false;
+
+		pendingEntry = {
+			user: userText,
+			asst: aiText,
+			pattern: turn.pattern,
+			watchdog: result,
+			choice: null,
+			flag: false
+		};
+
+		debugLog = [
+			...debugLog,
+			{
+				step: stepIndex,
+				pattern: turn.pattern,
+				detect: result.detect,
+				watchdogPattern: result.pattern,
+				nudge: result.nudge
+			}
+		];
+
+		if (showDog && result.detect) {
+			setTimeout(() => {
+				dogMessage = result.nudge ?? turn.probe;
+				dogVisible = true;
+				dogPose = 'talk';
+				if (enforced) dogLocked = true;
+			}, 500);
+		} else {
+			commitEntry();
+		}
+	};
+
+	const commitEntry = (choiceLabel: string | null = null) => {
+		sessionLog = [
+			...sessionLog,
+			{
+				user: pendingEntry.user ?? '',
+				asst: pendingEntry.asst ?? '',
+				pattern: pendingEntry.pattern ?? '',
+				watchdog: pendingEntry.watchdog ?? null,
+				choice: choiceLabel ?? pendingEntry.choice ?? null,
+				flag: pendingEntry.flag ?? false
+			}
+		];
+		pendingEntry = {};
+		saveToStorage();
+	};
+
+	// --- Flag ---
+	const toggleFlag = (msgIndex: number) => {
+		const next = new Set(flagged);
+		next.has(msgIndex) ? next.delete(msgIndex) : next.add(msgIndex);
+		flagged = next;
+		pendingEntry = { ...pendingEntry, flag: next.has(msgIndex) };
+	};
+
+	// --- Advance ---
+	const advanceTurn = async (userText: string, choiceLabel: string | null = null) => {
+		if (choiceLabel !== null && pendingEntry.asst)
+			pendingEntry = { ...pendingEntry, choice: choiceLabel };
+		dogVisible = false;
+		dogPose = 'idle';
+		dogLocked = false;
+		currentStep += 1;
+		progress = Math.round((currentStep / TOTAL_STEPS) * 100);
+		if (currentStep < turns.length) await pushAiTurn(currentStep, userText);
+	};
+
+	const sendMsg = async () => {
+		if (!currentMsg.trim() || inputDisabled || generating || dogLocked) return;
+		const text = currentMsg.trim();
+		currentMsg = '';
+		if (pendingEntry.asst) commitEntry();
+		msgs = [...msgs, { role: 'user', kind: 'text', text }];
+		scrollBottom();
+		if (currentStep >= TOTAL_STEPS) {
+			inputDisabled = true;
+			dogPose = 'sleep';
+			return;
+		}
+		await advanceTurn(text);
+	};
+
+	const chooseOption = (
+		option: { label: string; image?: string; biased: boolean },
+		msgIndex: number
+	) => {
+		if (choiceMade.has(msgIndex) || generating || dogLocked) return;
+		choiceMade = new Set([...choiceMade, msgIndex]);
+		choiceSelected = new Map([...choiceSelected, [msgIndex, option.label]]);
+		pendingEntry = { ...pendingEntry, choice: option.label };
+		// Inject into history for LLM context but not rendered as a chat bubble
+		msgs = [
+			...msgs,
+			{ role: 'user', kind: 'text', text: `I'll go with: ${option.label}`, hidden: true }
 		];
 	};
 
-	let scrollToBottom = (_: string) => {};
-
-	const sendchat = async () => {
-		msgs = addMsg(msgs, currentMsg, 'user');
-		currentMsg = '';
-
-		setTimeout(() => {
-			document.getElementById(`msg-${msgs.length - 1}`)?.scrollIntoView();
-		}, 100);
-		waiting = true;
-		msgs = addMsg(msgs, '', 'ai');
-		scrollToBottom('messages');
-
-		let promptObj = {
-			type: '',
-			ctx: ''
-		};
-
-		if (stages[currentStage].type === 'information') {
-			promptObj.type = 'information';
-			if (currentTopicLength === 0) {
-				promptObj.ctx = `Segway into discussing this information "${stages[currentStage].ctx}".
-				The following bubble is the user chat`;
-				if (Math.random() < 0.5) {
-					currentStage += 1;
-					currentTopicLength = 0;
-				} else {
-					currentTopicLength += 1;
-				}
-			} else {
-				promptObj.ctx = `continue talking about "${stages[currentStage].ctx}"" without changing the topic. Don't repeat the topic if previously discussed and emphasize with the previous chats if possible`;
-				currentStage += 1;
-				currentTopicLength = 0;
-			}
-		} else {
-			promptObj = {
-				type: 'wrap',
-				ctx: 'wrap up the conversation'
-			};
-			post = true;
-		}
-
-		animateFinish = false;
-		const completion = (await textgen(msgs, promptObj.type, promptObj.ctx)) ?? '';
-		const old = msgs.slice(0, -1);
-
-		waiting = false;
-		if (completion?.response) {
-			const length = completion.response.length;
-			for (let i = 0; i < length; i++) {
-				msgs = [...old, { type: 'ai', text: completion?.response.slice(0, i + 1) ?? '' }];
-				scrollToBottom('messages');
-				await new Promise((r) => setTimeout(r, 5));
-			}
-			animateFinish = true;
-		}
-
-		if (post) {
-			postData({
-				exp_condition: parseInt(t) === 1 ? 'misleading chatbot' : 'honest chatbot',
-				chat_log: JSON.stringify(msgs.slice(1)),
-				timestamp: new Date().toISOString().toString(),
-				qualtrics_code: qid
-			});
-		}
+	const onDogDismiss = () => {
+		dogVisible = false;
+		dogPose = 'idle';
+		commitEntry();
+	};
+	const onDogAnswer = (answer: string) => {
+		dogLocked = false;
+		dogVisible = false;
+		dogPose = 'idle';
+		pendingEntry = { ...pendingEntry, flag: pendingEntry.flag ?? false };
+		commitEntry();
 	};
 
 	onMount(async () => {
-		scrollToBottom = (obj: string) => {
-			const node = document.getElementById(obj);
-			const scroll = () => {
-				if (node)
-					node.scroll({
-						top: node.scrollHeight,
-						behavior: 'smooth'
-					});
-			};
-			scroll();
-
-			return { update: scroll };
-		};
-
-		const ctx = `Hi there! I'm a chatbot to discuss about ${sources.usr} Here's the summary of the article:
-		
-${summaries[parseInt(t) || 0]}
-
-What do you think about the article?`;
-
-		for (let i = 0; i < ctx.length; i++) {
-			msgs = [{ type: 'ai', text: ctx.slice(0, i + 1) }];
-			await new Promise((r) => setTimeout(r, 5));
-
-			// const obj = document.getElementById('messages');
-			scrollToBottom('messages');
-
-			if (i === ctx.length - 1) {
-				animateFinish = true;
-			}
-		}
+		if (!informed) await pushAiTurn(0);
 	});
 </script>
 
-<div class="flex h-[100svh] w-screen items-center justify-center">
-	<main
-		class="flex h-full w-[60rem] max-w-full flex-col justify-between gap-6 p-4 py-6 lg:aspect-video lg:h-auto lg:max-w-[80vw] lg:py-4"
-	>
-		<section id="messages" class="flex h-full flex-col gap-6 overflow-scroll">
-			{#each msgs as msg, i}
-				<div class="flex w-full gap-6" id={`msg-${i}`}>
-					<div
-						class={`size-[80px] min-w-[80px] overflow-hidden rounded-md ${msg.type === 'ai' ? 'border border-black' : ''}`}
-					>
-						<img
-							src={msg.type === 'ai' ? 'ai.png' : 'user.png'}
-							class="h-full w-full object-cover"
-							alt=""
-						/>
-					</div>
-					{#if !waiting || i < msgs.length - 1}
-						<div
-							class={`w-full text-pretty ${msg.type === 'ai' ? 'border-t' : 'border-t-2 font-semibold'} border-black pr-3 pt-3`}
-						>
-							<div class="prose">
-								{@html micromark(msg.text)}
-							</div>
-						</div>
-					{:else}
-						<div class="h-full w-full border-t border-black pr-3"><Loader /></div>
-					{/if}
-				</div>
-			{/each}
-		</section>
-		<section id="textbox" class="flex items-center gap-3">
-			<div
-				class="flex h-full w-full items-center border-b border-black disabled:border-neutral-500"
-			>
-				<textarea
-					disabled={post || !animateFinish}
-					style="resize:none;field-sizing: content;"
-					class="max-h-12 w-full bg-transparent px-1 pb-2 focus:outline-none disabled:bg-transparent"
-					name=""
-					id=""
-					placeholder={post
-						? 'Enter the password "happy horse 2024" (without quatation marks) to Qualtrics to proceed'
-						: 'What do you think?'}
-					bind:value={currentMsg}
-					onkeypress={(e) => {
-						// if enter and not hold shift
-						if (e.key === 'Enter' && !e.shiftKey) {
-							e.preventDefault();
-							sendchat();
-						}
-					}}
-				></textarea>
+{#if !preScreenDone}
+	<PreScreen
+		withTextarea={condition === 3}
+		onContinue={async (reflection) => {
+			preScreenReflection = reflection;
+			preScreenDone = true;
+			await pushAiTurn(0);
+		}}
+	/>
+{:else}
+	<ChatPanel
+		task={TASK}
+		{progress}
+		msgs={msgs.filter((m) => !('hidden' in m && m.hidden))}
+		{generating}
+		{dogLocked}
+		{inputDisabled}
+		{flagged}
+		{choiceMade}
+		{choiceSelected}
+		{currentMsg}
+		onSend={sendMsg}
+		onChoose={chooseOption}
+		onFlag={toggleFlag}
+		onMsgInput={(v) => (currentMsg = v)}
+		{bindEl}
+	/>
 
+	{#if showDog}
+		<WatchdogDog
+			visible={dogVisible}
+			message={dogMessage}
+			pose={dogPose}
+			{enforced}
+			onDismiss={onDogDismiss}
+			onAnswer={onDogAnswer}
+		/>
+	{/if}
+
+	<!-- Debug log -->
+	<div class="fixed left-3 top-3 flex flex-col gap-1 font-mono text-[10px]">
+		<div class="text-neutral-400">c={condition} step {currentStep}/{TOTAL_STEPS}</div>
+		{#each debugLog as entry}
+			<div class="rounded bg-black/70 px-2 py-1 text-white backdrop-blur">
+				<span class="text-neutral-400">#{entry.step}</span>
+				<span class="ml-1 text-yellow-300">{entry.pattern}</span>
+				<span class="ml-1 {entry.detect ? 'text-red-400' : 'text-green-400'}"
+					>{entry.detect ? '⚑' : '✓'}</span
+				>
+				{#if entry.watchdogPattern}<span class="ml-1 text-purple-300">{entry.watchdogPattern}</span
+					>{/if}
 			</div>
-			<button
-				disabled={post || !animateFinish}
-				class="aspect-video h-12 bg-black px-4 text-white disabled:bg-neutral-500"
-				onclick={sendchat}>Submit</button
-			>
-		</section>
-	</main>
-</div>
+		{/each}
+	</div>
+{/if}
