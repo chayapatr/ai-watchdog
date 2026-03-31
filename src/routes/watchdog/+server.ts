@@ -37,7 +37,7 @@ export const POST = async ({ request }) => {
 		: '';
 
 	const response = await model.chat.completions.create({
-		model: 'meta-llama/Meta-Llama-3.1-8B-Instruct',
+		model: 'meta-llama/Llama-3.3-70B-Instruct',
 		messages: [
 			{ role: 'system', content: systemPrompt },
 			{ role: 'user', content: `${choiceCtx}User message: ${userMessage}\n\nAI response: ${aiMessage}` }
